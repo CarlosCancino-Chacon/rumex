@@ -10,6 +10,8 @@ from basismixer.utils import get_unique_onset_idxs, notewise_to_onsetwise, onset
 
 import matplotlib.pyplot as plt
 
+from dynamics import DYNAMICS_MARKINGS_VELOCITY
+from tempo import TEMPO_MARKINGS_BPM
 
 
 if __name__ == '__main__':
@@ -21,14 +23,53 @@ if __name__ == '__main__':
     articulation, articulation_names = bf.articulation_basis(part)
     loudness, loudness_names = bf.loudness_direction_basis(part)
 
+    W_notewise = np.column_stack((metrical, tempo, articulation, loudness))
+    names = metrical_names + tempo_names + articulation_names + loudness_names
     # plt.plot(part.note_array['onset'], loudness[:, loudness_names.index('loudness_incr')])
     # plt.plot(part.note_array['onset'], loudness[:, loudness_names.index('loudness_decr')])
     # plt.show()
 
     onsets = part.note_array['onset']
+    N_n = len(onsets)
     unique_onset_idxs, unique_onsets = get_unique_onset_idxs(onsets, return_unique_onsets=True)
+    N_o = len(unique_onset_idxs)
+    W_onsetwise = notewise_to_onsetwise(W_notewise, unique_onset_idxs)
+
+    rng = np.random.RandomState(1984)
+
+    trend_dynamics = np.ones(N_o) * 50
+    for dm in DYNAMICS_MARKINGS_VELOCITY:
+
+        if dm in names:
+            di = names.index(dm)
+            d_idx = np.where(W_onsetwise[:, di] == 1)[0]
+            trend_dynamics[d_idx] = DYNAMICS_MARKINGS_VELOCITY[dm]
 
     
+    # for i, (on, w) in zip(onsets, W_onsetwise):
+
+    #     for dm in DYNAMICS_MARKINGS_VELOCITY:
+
+    #         if dm in names:
+    #             di = names.index(dm)
+    #             current_constant = dm
+                
+
+    trend_tempo = np.ones(N_o) * 60 / 108.
+
+    for tm in TEMPO_MARKINGS_BPM:
+        if tm in names:
+            ti = names.index(tm)
+            t_idx = np.where(W_onsetwise[:, ti] == 1)[0]
+            bp_low, bp_high = TEMPO_MARKINGS_BPM[tm]
+            trend_tempo[t_idx] = 60. / rng.randint(bp_low, bp_high)
+
+            
+            
+            
+            
+
+            
     
     
 
