@@ -93,14 +93,16 @@ def render_piece(part, config=DEFAULT_CONFIG, rng=RNG,
     predictions['articulation_log'] = articulation_log
 
 
-    pc = get_performance_codec(parameter_names)
-
-    predicted_ppart = pc.decode(part, predictions)
 
     if return_bfs:
-        return predicted_ppart, part, W_notewise
+        # save basis functions, and predictions
+        return W, names, predictions
     else:
-        return predicted_ppart, part
+        # Export predicted part
+        pc = get_performance_codec(parameter_names)
+        predicted_ppart = pc.decode(part, predictions)
+
+        return predicted_ppart
 
 def remove_score_extension(filename):
 
@@ -118,11 +120,13 @@ if __name__ == '__main__':
 
     parser.add_argument('filename', help='Score to be rendered (MusicXML or MIDI)')
     parser.add_argument('--config', help='Config file in JSON format', default=None)
-    parser.add_argument('--return-bfs', help='Return predictions', action='store_true',
+    parser.add_argument('--return-bfs', help='Return features', action='store_true',
                         default=False)
     parser.add_argument('--outfile', help='Output MIDI file (optional)', default=None)
     parser.add_argument('--random-state', help='Seed for random number generator', default=None,
                         type=int)
+    parser.add_argument('--features-outfile', help='Output file for storing bfs and parameters',
+                        default=None)
 
     args = parser.parse_args()
 
@@ -135,6 +139,11 @@ if __name__ == '__main__':
         out_dir = os.path.dirname(args.filename)
         filename = remove_score_extension(os.path.basename(args.filename)) + '.mid'
         args.outfile = os.path.join(out_dir, filename)
+
+    if args.features_outfile is None:
+        out_dir = os.path.dirname(args.filename)
+        filename = remove_score_extension(os.path.basename(args.filename)) + '.npz'
+        args.features_outfile = os.path.join(out_dir, filename)
 
     if args.random_state is not None:
         rng = np.random.RandomState(args.random_state)
@@ -151,7 +160,8 @@ if __name__ == '__main__':
 
     if part is None:
         raise ValueError(('Could not load input score {0}. '
-                          'Is it in one of the accepted formats (MusicXML, MIDI)?').format(args.filename))
+                          'Is it in one of the accepted formats '
+                          '(MusicXML, MIDI)?').format(args.filename))
         
     # Expand grace notes (seems to be broken?)
     score.expand_grace_notes(part)
@@ -159,7 +169,21 @@ if __name__ == '__main__':
     # part = score.unfold_part_maximal(part)
 
     # render piece
-    predicted_ppart, part = render_piece(part, config=config, rng=rng, return_bfs=args.return_bfs)
-    # save as MIDI file
-    partitura.save_performance_midi(predicted_ppart, args.outfile)
+    if args.return_bfs:
+        W, names, parameters = render_piece(part,
+                                            config=config,
+                                            rng=rng,
+                                            return_bfs=True)
+        results = dict(W=W,
+                       bf_names=names,
+                       parameters=parameters,
+                       score_info=part.note_array)
+        np.savez_compressed(args.features_outfile, **results)
+    else:
+        predicted_ppart = render_piece(part,
+                                       config=config,
+                                       rng=rng,
+                                       return_bfs=False)
+        # save as MIDI file
+        partitura.save_performance_midi(predicted_ppart, args.outfile)
 

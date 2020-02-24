@@ -69,11 +69,14 @@ def _get_constant_markings_array_and_maps(W_onsetwise, names, unique_onsets,
                 di = names.index(dm)
                 if w[di] != 0:
                     try:
-                        if cm_array[-1][1] != ci:
+                        if cm_array[-1][1] != ci and cm_array[-1][0] != on:
+                            # if cm_array[-1][0] != on:
+                            #     # Case where there are two dynamics markings with the same
+                            #     # onset
                             cm_array.append((on, ci))
                     except:
                         cm_array.append((on, ci))
-
+                        
     # if there are no constant markings, assume `default_marking`
     if len(cm_array) == 0:
         cm_array.append((unique_onsets.min(), int(np.where(constant_markings == default_marking)[0])))
@@ -81,8 +84,10 @@ def _get_constant_markings_array_and_maps(W_onsetwise, names, unique_onsets,
 
     # assume `default_marking` if there is no marking at the begining of the piece
     if cm_array[0, 0] != unique_onsets.min():
-        cm_array = np.insert(cm_array, 0, (unique_onsets.min(),
-                                           int(np.where(constant_markings == default_marking)[0])))
+        cm_array = np.insert(cm_array, [0],
+                             np.array((unique_onsets.min(),
+                                       int(np.where(constant_markings == default_marking)[0]))),
+                             axis=0)
 
     # Create constant markings map
     if len(cm_array) > 1:
@@ -228,7 +233,7 @@ def compute_increase_decrease_profile(increase, decrease, unique_onsets, constan
 
     # The full profile is the sum of both increase and decrease
     # TODO: Add a nonlinearity here?
-    incr_decr_profile = increase_profile + decrease_profile
+    incr_decr_profile = (increase_profile + decrease_profile).astype(np.float)
 
     # scale according to dynamics markings:
     # how much it increases or decreases
@@ -261,12 +266,14 @@ def compute_increase_decrease_profile(increase, decrease, unique_onsets, constan
             dyn_multiplier = default_diff
 
         # scale for the section
-        scale = max(abs(incr_decr_profile[cm_idxs]))
+        # import pdb
+        # pdb.set_trace()
+        scale = float(max(abs(incr_decr_profile[cm_idxs])))
         if scale == 0:
             # if there is no increase or decrease
             scale = 1.0
 
-        # Scale the profile
+        # Scale the profile        
         incr_decr_profile[cm_idxs] *= dyn_multiplier / scale
 
     return incr_decr_profile
