@@ -170,13 +170,13 @@ if __name__ == '__main__':
 
     # render piece
     if args.return_bfs:
-        W, names, parameters = render_piece(part,
+        W, names, predictions = render_piece(part,
                                             config=config,
                                             rng=rng,
                                             return_bfs=True)
         results = dict(W=W,
                        bf_names=names,
-                       parameters=parameters,
+                       predictions=predictions,
                        score_info=part.note_array)
         np.savez_compressed(args.features_outfile, **results)
     else:
