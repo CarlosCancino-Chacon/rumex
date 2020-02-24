@@ -21,9 +21,10 @@ from timing import TimingRules
 
 if __name__ == '__main__':
 
-    fn = '/Users/aae/Downloads/mozart_k331.musicxml'
+    fn = '../data_examples/mozart_k331.musicxml'
     part = partitura.load_musicxml(fn, force_note_ids=True)
     score.expand_grace_notes(part)
+    part = score.unfold_part_maximal(part)
 
     # extract metrical features
     metrical, metrical_names = bf.metrical_strength_basis(part)
@@ -53,9 +54,9 @@ if __name__ == '__main__':
     ar = ArticulationRules(rng=rng)
     tr = TimingRules(rng=rng)
 
-    velocity_trend, velocity_dev = dr.compute_dynamics(part, W_notewise, names)
-    articulation_log = ar.compute_articulation(part, W_notewise, names)
-    timing = tr.compute_timing(part, W_notewise, names, velocity_trend=velocity_trend,
+    velocity_trend, velocity_dev = dr.compute_parameters(part, W_notewise, names)
+    articulation_log = ar.compute_parameters(part, W_notewise, names)
+    timing = tr.compute_parameters(part, W_notewise, names, velocity_trend=velocity_trend,
                                velocity_dev=velocity_dev)
     
     
@@ -70,8 +71,13 @@ if __name__ == '__main__':
 
 
     measure_array = []
-    for m in part.iter_all(score.Measure):
-        measure_array.append((m.number,) + tuple(part.beat_map([m.start.t, m.end.t])))
+    for i, m in enumerate(part.iter_all(score.Measure)):
+        # if m.number in unique_measures:
+        #     m_number = len(unique_measures) + m.number
+        # else:
+        #     m_number = m.number
+        #     unique_measures.append(m_number)
+        measure_array.append((i,) + tuple(part.beat_map([m.start.t, m.end.t])))
 
     measure_array = np.array(measure_array)
     measure_map = interp1d(measure_array[:, 0], measure_array[:, 1],
@@ -99,7 +105,7 @@ if __name__ == '__main__':
     predictions = np.zeros(N_n,
                            dtype=[(pn, 'f4') for pn in parameter_names])
     predictions['beat_period'] = onsetwise_to_notewise(beat_period, unique_onset_idxs)
-    predictions['velocity_trend'] = onsetwise_to_notewise(velocity_trend, unique_onset_idxs)
+    predictions['velocity_trend'] = velocity_trend
     predictions['velocity_dev'] = velocity_dev
     predictions['timing'] = timing
     predictions['articulation_log'] = articulation_log

@@ -2,31 +2,21 @@ import numpy as np
 
 from basismixer.utils import get_unique_onset_idxs, notewise_to_onsetwise, onsetwise_to_notewise
 
+from base import PerformanceRules, _get_score_info
+
 RNG = np.random.RandomState(1984)
 
 DEFAULT_PIPELINE = ['mechanical_lead_rules']
 
-class TimingRules(object):
+class TimingRules(PerformanceRules):
     def __init__(self, pipeline=DEFAULT_PIPELINE, rng=RNG):
-        self.pipeline = []
+        super().__init__(pipeline=pipeline,
+                         rng=rng,
+                         module_globals=globals())
 
-        for proc in pipeline:
-            try:
-                func = globals()[proc]
-                self.pipeline.append(func)
-            except:
-                raise ValueError('{0} is not an available method'.format(proc))
-            
-        self.rng = rng
+    def compute_parameters(self, part, W, names, *args, **kwargs):
 
-    def compute_timing(self, part, W, names, *args, **kwargs):
-
-        # get unique onsets of the piece
-        onsets = part.note_array['onset']
-        duration = part.note_array['duration']
-        pitch = part.note_array['pitch']
-
-        unique_onset_idxs, unique_onsets = get_unique_onset_idxs(onsets, return_unique_onsets=True)
+        (pitch, onsets, duration, unique_onsets, unique_onset_idxs) = _get_score_info(part)
 
         timing = np.zeros(len(W))
 

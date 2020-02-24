@@ -3,11 +3,22 @@ from scipy.interpolate import interp1d
 
 from basismixer.utils import get_unique_onset_idxs, notewise_to_onsetwise, onsetwise_to_notewise
 
-DYNAMICS_MARKINGS_VELOCITY = {"pp": (15, 30),
+from base import PerformanceRules, _get_score_info
+
+DYNAMICS_MARKINGS_VELOCITY = {"ppppp": (5, 12),
+                              "pppp": (7, 17),
+                              "ppp": (10, 25),
+                              "pp": (15, 30),
                               "p": (30, 40),
+                              "mp": (35, 45),
                               "mf": (40, 55),
                               "f": (65, 75),
-                              "ff": (85, 100)
+                              "ff": (85, 100),
+                              "fff": (90, 105),
+                              "ffff": (95, 110),
+                              "ffff": (100, 110),
+                              "fffff": (102, 112),
+                              "ffffff": (110, 120)
 }
 
 ACCENT_INCREASE = {"accent": (0.1, 0.2),
@@ -16,7 +27,9 @@ ACCENT_INCREASE = {"accent": (0.1, 0.2),
                    "tenuto": (-0.02, -0.01),
 }
 
-CONSTANT_MARKINGS = np.array(['pp', 'p', 'mf', 'f', 'ff'])
+CONSTANT_MARKINGS = np.array(['ppppp', 'pppp', 'ppp', 'pp', 'p',
+                              'mp', 'mf',
+                              'f', 'ff', 'fff', 'ffff', 'fffff'])
 
 RNG = np.random.RandomState(1984)
 
@@ -28,27 +41,19 @@ DEFAULT_PIPELINE = ['dynamics_markings_rules',
                     
                     
 
-class DynamicsRules(object):
+class DynamicsRules(PerformanceRules):
+    """
+    Pipeline for computing dynamics-related expressive parameters
+    (velocity_trend and velocity_dev) using rules
+    """
     def __init__(self, pipeline=DEFAULT_PIPELINE, rng=RNG):
-        self.pipeline = []
+        super().__init__(pipeline=pipeline,
+                         rng=rng,
+                         module_globals=globals())
 
-        for proc in pipeline:
-            try:
-                func = globals()[proc]
-                self.pipeline.append(func)
-            except:
-                raise ValueError('{0} is not an available method'.format(proc))
-            
-        self.rng = rng
+    def compute_parameters(self, part, W, names, *args, **kwargs):
 
-    def compute_dynamics(self, part, W, names, *args, **kwargs):
-
-        # get unique onsets of the piece
-        onsets = part.note_array['onset']
-        duration = part.note_array['duration']
-        pitch = part.note_array['pitch']
-
-        unique_onset_idxs, unique_onsets = get_unique_onset_idxs(onsets, return_unique_onsets=True)
+        (pitch, onsets, duration, unique_onsets, unique_onset_idxs) = _get_score_info(part)
 
         velocity_trend = np.ones(len(W)) * 64
         velocity_dev = np.zeros(len(W))

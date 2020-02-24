@@ -2,6 +2,8 @@ import numpy as np
 
 from basismixer.utils import get_unique_onset_idxs, notewise_to_onsetwise, onsetwise_to_notewise
 
+from base import PerformanceRules, _get_score_info
+
 ARTICULATION_MARKINGS_RATIO = {"staccato": (0.4, 0.6),
                                "tenuto": (0.7, 0.9),
                                "legato": (1.0, 1.3),
@@ -12,27 +14,32 @@ RNG = np.random.RandomState(1984)
 
 DEFAULT_PIPELINE = ['notewise_articulation_markings_rules']
 
-class ArticulationRules(object):
+class ArticulationRules(PerformanceRules):
     def __init__(self, pipeline=DEFAULT_PIPELINE, rng=RNG):
-        self.pipeline = []
+        super().__init__(pipeline=pipeline,
+                         rng=rng,
+                         module_globals=globals())
 
-        for proc in pipeline:
-            try:
-                func = globals()[proc]
-                self.pipeline.append(func)
-            except:
-                raise ValueError('{0} is not an available method'.format(proc))
+        # self.pipeline = []
+
+        # for proc in pipeline:
+        #     try:
+        #         func = globals()[proc]
+        #         self.pipeline.append(func)
+        #     except:
+        #         raise ValueError('{0} is not an available method'.format(proc))
             
-        self.rng = rng
+        # self.rng = rng
 
-    def compute_articulation(self, part, W, names, *args, **kwargs):
+    def compute_parameters(self, part, W, names, *args, **kwargs):
 
-        # get unique onsets of the piece
-        onsets = part.note_array['onset']
-        duration = part.note_array['duration']
-        pitch = part.note_array['pitch']
+        # # get unique onsets of the piece
+        # onsets = part.note_array['onset']
+        # duration = part.note_array['duration']
+        # pitch = part.note_array['pitch']
 
-        unique_onset_idxs, unique_onsets = get_unique_onset_idxs(onsets, return_unique_onsets=True)
+        # unique_onset_idxs, unique_onsets = get_unique_onset_idxs(onsets, return_unique_onsets=True)
+        (pitch, onsets, duration, unique_onsets, unique_onset_idxs) = _get_score_info(part)
 
         articulation = np.ones(len(W))
 
