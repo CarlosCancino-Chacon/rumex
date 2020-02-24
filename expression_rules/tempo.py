@@ -2,7 +2,7 @@ import numpy as np
 
 from basismixer.utils import get_unique_onset_idxs, notewise_to_onsetwise, onsetwise_to_notewise
 
-from base import PerformanceRules, _get_score_info, _get_constant_markings_array
+from base import PerformanceRules, _get_score_info, _get_constant_markings_array_and_maps
 
 TEMPO_MARKINGS_BPM = {
     "larghissimo" : (18, 20),
