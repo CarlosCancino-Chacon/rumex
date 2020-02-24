@@ -124,7 +124,8 @@ def _initialize_onsetwise_parameter(unique_onsets, cm_array, parameter_per_marki
 
 
 def compute_increase_decrease_profile(increase, decrease, unique_onsets, constant_markings_map,
-                                      cm_array, parameter_per_marking, default_diff):
+                                      cm_array, parameter_per_marking, default_diff,
+                                      max_multiplier=0.9):
     """
     Profile of gradual increase and decrease of an onsetwise parameter
 
@@ -254,7 +255,7 @@ def compute_increase_decrease_profile(increase, decrease, unique_onsets, constan
 
         if abs(dyn_diff) != 0:
             # It will increse/decrease at most 90% of the difference
-            dyn_multiplier = 0.9 * abs(dyn_diff)
+            dyn_multiplier = max_multiplier * abs(dyn_diff)
         else:
             # It will increase/decrease at most 10 MIDI velocity units
             dyn_multiplier = default_diff

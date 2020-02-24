@@ -113,7 +113,6 @@ def dynamics_markings_rules(W, names, onsets, rng=RNG, unique_onset_idxs=None,
     velocity_per_dm = _sample_velocity_per_dm(dm_array=dm_array, rng=rng)
 
     # Initialize velocity trend
-    # velocity_trend = _initialize_velocity_trend(unique_onsets, dm_array, velocity_per_dm)
     velocity_trend = _initialize_onsetwise_parameter(unique_onsets=unique_onsets,
                                                      cm_array=dm_array,
                                                      parameter_per_marking=velocity_per_dm)

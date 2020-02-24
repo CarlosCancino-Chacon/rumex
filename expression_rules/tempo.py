@@ -2,7 +2,12 @@ import numpy as np
 
 from basismixer.utils import get_unique_onset_idxs, notewise_to_onsetwise, onsetwise_to_notewise
 
-from base import PerformanceRules, _get_score_info, _get_constant_markings_array_and_maps
+from base import (PerformanceRules,
+                  _get_score_info,
+                  _get_constant_markings_array_and_maps,
+                  _initialize_onsetwise_parameter,
+                  compute_increase_decrease_profile)
+
 
 TEMPO_MARKINGS_BPM = {
     "larghissimo" : (18, 20),
@@ -42,7 +47,9 @@ CONSTANT_MARKINGS = np.array(["larghissimo",
 
 RNG = np.random.RandomState(1984)
 
-DEFAULT_PIPELINE = ['tempo_markings_rules', 'final_ritardando_rules']
+DEFAULT_PIPELINE = ['tempo_markings_rules',
+                    # 'final_ritardando_rules',
+]
 
 class TempoRules(PerformanceRules):
     def __init__(self, pipeline=DEFAULT_PIPELINE, rng=RNG):
@@ -60,6 +67,7 @@ class TempoRules(PerformanceRules):
         velocity_dev = kwargs.pop('velocity_dev', None)
         timing = kwargs.pop('timing', None)
         articulation_log = kwargs.pop('articulation_log', None)
+        beat_period = kwargs.pop('beat_period', None)
 
         for func in self.pipeline:
 
@@ -103,86 +111,48 @@ def tempo_markings_rules(W, names, onsets, rng=RNG,
 
     W_onsetwise = notewise_to_onsetwise(W, unique_onset_idxs)
 
-    (tempo_markings_map, next_tempo_markings_map,
-     tm_array) = _get_constant_tempo_markings_map(W_onsetwise=W_onsetwise,
-                                                  names=names,
-                                                  unique_onsets=unique_onsets,
-                                                  rng=rng)
+    (tm_array, tempo_markings_map, next_tempo_markings_map) = _get_constant_markings_array_and_maps(
+        W_onsetwise=W_onsetwise,
+        names=names,
+        unique_onsets=unique_onsets,
+        constant_markings=CONSTANT_MARKINGS,
+        default_marking='moderato')
     beat_period_per_tm = _sample_beat_period_per_dm(tm_array=tm_array,
                                                     rng=rng)
+    
+    # Initialize beat period (i.e., overwrites any given input beat_period)
+    beat_period = _initialize_onsetwise_parameter(unique_onsets=unique_onsets,
+                                                  cm_array=tm_array,
+                                                  parameter_per_marking=beat_period_per_tm)
 
-    beat_period = _initialize_beat_period(unique_onsets, tm_array, beat_period_per_tm)
+    if 'tempo_incr' in names:
+        accelerando = W_onsetwise[:, names.index('tempo_incr')]
+    else:
+        accelerando = np.zeros(len(unique_onsets))
 
+    if 'tempo_decr' in names:
+        ritardando = W_onsetwise[:, names.index('tempo_decr')]
+    else:
+        ritardando = np.zeros(len(unique_onsets))
 
-    return beat_period
+    
+    acc_rit_profile = compute_increase_decrease_profile(increase=accelerando,
+                                                        decrease=ritardando,
+                                                        unique_onsets=unique_onsets,
+                                                        constant_markings_map=tempo_markings_map,
+                                                        cm_array=tm_array,
+                                                        parameter_per_marking=beat_period_per_tm,
+                                                        default_diff=0.05,
+                                                        max_multiplier=0.5) # think of a reasonable default
+                                                        
+    beat_period -= acc_rit_profile
 
-def _get_constant_tempo_markings_map(W_onsetwise, names, unique_onsets, rng=RNG):
+    return onsetwise_to_notewise(beat_period, unique_onset_idxs)
 
-    # tm_array = []
-    # for on, w in zip(unique_onsets, W_onsetwise):
-
-    #     for ti, tm in enumerate(CONSTANT_MARKINGS):
-    #         if tm in names:
-    #             if w[names.index(tm)] != 0:
-    #                 try:
-    #                     if tm_array[-1][1] != ti:
-    #                         tm_array.append((on, ti))
-    #                 except:
-    #                     tm_array.append((on, ti))
-
-    # if len(tm_array) == 0:
-    #     tm_array.append((unique_onsets.min(), int(np.where(CONSTANT_MARKINGS == 'moderato')[0])))
-    # tm_array = np.array(tm_array)
-    tm_array = _get_constant_markings_array(W_onsetwise=W_onsetwise,
-                                            names=names,
-                                            unique_onsets=unique_onsets,
-                                            constant_markings=CONSTANT_MARKINGS,
-                                            default_marking='moderato')
-
-    return tm_array
-
-
-def _initialize_beat_period(W_onsetwise, names, unique_onsets):
-    """
-    Helper method to initialize beat_period with a constant value per
-    constant tempo markings.
-    """
-    # beat_period = np.ones(len(unique_onsets)) * 60 / 108.0
-
-    # for tm in TEMPO_MARKINGS_BPM:
-    #     if tm in names:
-    #         ti = names.index(tm)
-    #         t_idx = np.where(W_onsetwise[:, ti] == 1)[0]
-    #         # bp_low, bp_high = TEMPO_MARKINGS_BPM[tm]
-    #         beat_period[t_idx] = 60. / rng.randint(*TEMPO_MARKINGS_BPM[tm])
-
-
-    return beat_period
-
-
-
-
-    # measure_array = []
-    # for m in part.iter_all(score.Measure):
-    #     measure_array.append((m.number,) + tuple(part.beat_map([m.start.t, m.end.t])))
-
-    # measure_array = np.array(measure_array)
-    # measure_map = interp1d(measure_array[:, 0], measure_array[:, 1],
-    #                        kind='previous',
-    #                        bounds_error=False,
-    #                        fill_value=(measure_array[:, 1].min(),
-    #                                    measure_array[:, 1].max()))
-    # inv_measure_map = interp1d(measure_array[:, 1], measure_array[:, 0],
-    #                        kind='previous',
-    #                        bounds_error=False,
-    #                        fill_value=(measure_array[:, 0].min(),
-    #                                    measure_array[:, 0].max()))
-
-    # n_bars_rit = 2
-    # final_ritard_idxs = np.where(unique_onsets >= measure_array[-n_bars_rit, 1])[0]
-    # rit_curve = friberg_sundberg_rit(len(final_ritard_idxs))
-    # beat_period[final_ritard_idxs] *= rit_curve
-    # return beat_period
+def _sample_beat_period_per_dm(tm_array, rng):
+    beat_period_per_tm = [60. / rng.uniform(*TEMPO_MARKINGS_BPM[CONSTANT_MARKINGS[int(tm)]])
+                          for _, tm in tm_array]
+    return beat_period_per_tm
 
 
 def friberg_sundberg_rit(len_c, r_w=0.5, r_q=2.0):
