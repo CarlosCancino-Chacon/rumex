@@ -93,15 +93,14 @@ def render_piece(part, config=DEFAULT_CONFIG, rng=RNG,
     predictions['articulation_log'] = articulation_log
 
 
+    pc = get_performance_codec(parameter_names)
+    predicted_ppart = pc.decode(part, predictions)
 
     if return_bfs:
         # save basis functions, and predictions
-        return W, names, predictions
+        return predicted_ppart, W, names, predictions
     else:
         # Export predicted part
-        pc = get_performance_codec(parameter_names)
-        predicted_ppart = pc.decode(part, predictions)
-
         return predicted_ppart
 
 def remove_score_extension(filename):
@@ -170,7 +169,7 @@ if __name__ == '__main__':
 
     # render piece
     if args.return_bfs:
-        W, names, predictions = render_piece(part,
+        predicted_ppart, W, names, predictions = render_piece(part,
                                             config=config,
                                             rng=rng,
                                             return_bfs=True)
@@ -184,6 +183,6 @@ if __name__ == '__main__':
                                        config=config,
                                        rng=rng,
                                        return_bfs=False)
-        # save as MIDI file
-        partitura.save_performance_midi(predicted_ppart, args.outfile)
+    # save as MIDI file
+    partitura.save_performance_midi(predicted_ppart, args.outfile)
 
