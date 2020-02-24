@@ -20,7 +20,11 @@ CONSTANT_MARKINGS = np.array(['pp', 'p', 'mf', 'f', 'ff'])
 
 RNG = np.random.RandomState(1984)
 
-DEFAULT_PIPELINE = ['dynamics_markings_rules', 'simple_accent_rules']
+DEFAULT_PIPELINE = ['dynamics_markings_rules',
+                    'simple_accent_rules',
+                    'polynomial_pitch_height_rules',
+                    'motor_noise_rules'
+]
                     
                     
 
@@ -54,11 +58,16 @@ class DynamicsRules(object):
             velocity_trend, velocity_dev = func(W=W,
                                                 names=names,
                                                 onsets=onsets,
+                                                pitch=pitch,
+                                                duration=duration,
                                                 rng=self.rng,
                                                 unique_onset_idxs=unique_onset_idxs,
                                                 unique_onsets=unique_onsets,
+                                                velocity_trend=velocity_trend,
+                                                velocity_dev=velocity_dev,
                                                 *args, **kwargs)
-        return velocity_trend, velocity_dev
+
+        return velocity_trend / 127, velocity_dev / 127
 
 
 def dynamics_markings_rules(W, names, onsets, rng=RNG, unique_onset_idxs=None,
@@ -123,7 +132,7 @@ def simple_accent_rules(W, names, velocity_trend=None, velocity_dev=None, rng=RN
                         *args, **kwargs):
 
     if velocity_trend is None:
-        velocity_trend = np.ones(len(W)) * 64
+        velocity_trend = np.ones(len(W)) * 50
     if velocity_dev is None:
         velocity_dev = np.zeros_like(velocity_trend)
 
@@ -134,7 +143,24 @@ def simple_accent_rules(W, names, velocity_trend=None, velocity_dev=None, rng=RN
 
     return velocity_trend, velocity_dev
 
-    
+def polynomial_pitch_height_rules(pitch, velocity_trend=None, velocity_dev=None, *args, **kwargs):
+
+    if velocity_trend is None:
+        velocity_trend = np.ones(len(pitch)) * 50
+    if velocity_dev is None:
+        velocity_dev = np.zeros_like(velocity_trend)
+
+    velocity_dev += (1 - centered_quadratic_pitch(pitch,
+                                                  max_pitch=pitch.max(),
+                                                  min_pitch=pitch.min())) * velocity_trend
+
+    return velocity_trend, velocity_dev
+
+def motor_noise_rules(velocity_trend, velocity_dev, rng=RNG, std=0.05, *args, **kwargs):
+
+    velocity_dev += rng.normal(loc=0, scale=std, size=len(velocity_dev)) * velocity_trend
+
+    return velocity_trend, velocity_dev
 
 
     
@@ -164,8 +190,9 @@ def _get_constant_dynamics_markings_map(W_onsetwise, names, unique_onsets, rng=R
     dm_array = np.array(dm_array)
 
     # assume mf if there is no dynamics marking at the begining of the piece
-    if dm_array[0, 0] != onsets.min():
-        dm_array = np.insert(dm_array, 0, (onsets.min(), int(np.where(CONSTANT_MARKINGS == 'mf')[0])))
+    if dm_array[0, 0] != unique_onsets.min():
+        dm_array = np.insert(dm_array, 0, (unique_onsets.min(),
+                                           int(np.where(CONSTANT_MARKINGS == 'mf')[0])))
 
     # Create dynamics markings map
     if len(dm_array) > 1:
@@ -373,9 +400,13 @@ def compute_accents(W, names, velocity_trend, rng=RNG):
 
     return velocity_dev
 
+def centered_quadratic_pitch(pitch, min_proportion=0.8, max_pitch=96, min_pitch=24,
+                             max_proportion=1.2):
     
-    
-    
+    b = np.sqrt(max_proportion - min_proportion) * (1 + min_pitch / max_pitch) / (1 - min_pitch / max_pitch )
+    a = (np.sqrt(max_proportion - min_proportion) + b) / max_pitch
+
+    return np.clip((a * pitch - b) ** 2 + min_proportion, min_proportion, 1.0)
 
 
 if __name__ == '__main__':
