@@ -20,25 +20,8 @@ class ArticulationRules(PerformanceRules):
                          rng=rng,
                          module_globals=globals())
 
-        # self.pipeline = []
-
-        # for proc in pipeline:
-        #     try:
-        #         func = globals()[proc]
-        #         self.pipeline.append(func)
-        #     except:
-        #         raise ValueError('{0} is not an available method'.format(proc))
-            
-        # self.rng = rng
-
     def compute_parameters(self, part, W, names, *args, **kwargs):
 
-        # # get unique onsets of the piece
-        # onsets = part.note_array['onset']
-        # duration = part.note_array['duration']
-        # pitch = part.note_array['pitch']
-
-        # unique_onset_idxs, unique_onsets = get_unique_onset_idxs(onsets, return_unique_onsets=True)
         (pitch, onsets, duration, unique_onsets, unique_onset_idxs) = _get_score_info(part)
 
         articulation = np.ones(len(W))

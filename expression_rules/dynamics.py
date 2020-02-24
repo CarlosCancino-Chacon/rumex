@@ -3,7 +3,7 @@ from scipy.interpolate import interp1d
 
 from basismixer.utils import get_unique_onset_idxs, notewise_to_onsetwise, onsetwise_to_notewise
 
-from base import PerformanceRules, _get_score_info
+from base import PerformanceRules, _get_score_info, _get_constant_markings_array
 
 DYNAMICS_MARKINGS_VELOCITY = {"ppppp": (5, 12),
                               "pppp": (7, 17),
@@ -38,8 +38,8 @@ DEFAULT_PIPELINE = ['dynamics_markings_rules',
                     'polynomial_pitch_height_rules',
                     'motor_noise_rules'
 ]
-                    
-                    
+
+
 
 class DynamicsRules(PerformanceRules):
     """
@@ -79,7 +79,7 @@ def dynamics_markings_rules(W, names, onsets, rng=RNG, unique_onset_idxs=None,
                             velocity_trend=None, velocity_dev=None,
                             *args, **kwargs):
     """
-    Compute 
+    Compute
     """
 
     if unique_onset_idxs is None:
@@ -168,36 +168,18 @@ def motor_noise_rules(velocity_trend, velocity_dev, rng=RNG, std=0.05, *args, **
     return velocity_trend, velocity_dev
 
 
-    
+
 def _get_constant_dynamics_markings_map(W_onsetwise, names, unique_onsets, rng=RNG):
     """
     Returns a map of the dynamics marking for each onset, as well as a map of the next
     constant dynamics markings and an array with the position in beats of each
     constant dynamics markings.
     """
-    # get starting point of all constant dynamics markings
-    dm_array = []
-    for on, w in zip(unique_onsets, W_onsetwise):
-        
-        for ci, dm in enumerate(CONSTANT_MARKINGS):
-            if dm in names:
-                di = names.index(dm)
-                if w[di] != 0:
-                    try:
-                        if dm_array[-1][1] != ci:
-                            dm_array.append((on, ci))
-                    except:
-                        dm_array.append((on, ci))
-
-    # if there are no constant dynamics markings, assume mf
-    if len(dm_array) == 0:
-        dm_array.append((unique_onsets.min(), int(np.where(CONSTANT_MARKINGS == 'mf')[0])))
-    dm_array = np.array(dm_array)
-
-    # assume mf if there is no dynamics marking at the begining of the piece
-    if dm_array[0, 0] != unique_onsets.min():
-        dm_array = np.insert(dm_array, 0, (unique_onsets.min(),
-                                           int(np.where(CONSTANT_MARKINGS == 'mf')[0])))
+    dm_array = _get_constant_markings_array(W_onsetwise=W_onsetwise,
+                                            names=names,
+                                            unique_onsets=unique_onsets,
+                                            constant_markings=CONSTANT_MARKINGS,
+                                            default_marking='mf')
 
     # Create dynamics markings map
     if len(dm_array) > 1:
@@ -240,7 +222,7 @@ def _initialize_velocity_trend(unique_onsets, dm_array, velocity_per_dm):
 
 
     return velocity_trend
-            
+
 
 def compute_crescendo_profile(crescendo, diminuendo, unique_onsets, dynamics_markings_map,
                               dm_array, velocity_per_dm, default_dyn_diff=10):
@@ -256,7 +238,7 @@ def compute_crescendo_profile(crescendo, diminuendo, unique_onsets, dynamics_mar
     diminuendo : np.ndarray
         Value from the diminuendo basis function for each score onset (i.e., `unique_onsets`)
         The basis function evaluates to 0 at the start of the diminuendo mark and 1 at the end and
-        zero otherwise. See `basismixer.basisfunction.loudness_direction_basis`.    
+        zero otherwise. See `basismixer.basisfunction.loudness_direction_basis`.
     unique_onsets : np.ndarray
         Unique score positions in beats in the score
     dynamics_markings_map : callable
@@ -342,7 +324,7 @@ def compute_crescendo_profile(crescendo, diminuendo, unique_onsets, dynamics_mar
         else:
             diminuendo_profile.append(0)
             prev_diminuendo = False
-            
+
     crescendo_profile = np.array(crescendo_profile)
     diminuendo_profile = np.array(diminuendo_profile)
 
@@ -407,49 +389,8 @@ def compute_accents(W, names, velocity_trend, rng=RNG):
 
 def centered_quadratic_pitch(pitch, min_proportion=0.8, max_pitch=96, min_pitch=24,
                              max_proportion=1.2):
-    
+
     b = np.sqrt(max_proportion - min_proportion) * (1 + min_pitch / max_pitch) / (1 - min_pitch / max_pitch )
     a = (np.sqrt(max_proportion - min_proportion) + b) / max_pitch
 
     return np.clip((a * pitch - b) ** 2 + min_proportion, min_proportion, 1.0)
-
-
-if __name__ == '__main__':
-
-    import partitura
-    import basismixer.basisfunctions as bf
-    
-
-    fn = '/Users/aae/Downloads/mozart_k331.musicxml'
-    part = partitura.load_musicxml(fn, force_note_ids=True)
-
-    # extract metrical features
-    metrical, metrical_names = bf.metrical_strength_basis(part)
-    # extract tempo/timing related features
-    tempo, tempo_names = bf.tempo_direction_basis(part)
-    # extract articulation related features
-    articulation, articulation_names = bf.articulation_basis(part)
-    # extract dynamics related features
-    loudness, loudness_names = bf.loudness_direction_basis(part)
-
-    # Concatenate features
-    W_notewise = np.column_stack((metrical, tempo, articulation, loudness))
-    names = metrical_names + tempo_names + articulation_names + loudness_names
-
-    # get unique onsets of the piece
-    onsets = part.note_array['onset']
-    duration = part.note_array['duration']
-    pitch = part.note_array['pitch']
-    N_n = len(onsets)
-    unique_onset_idxs, unique_onsets = get_unique_onset_idxs(onsets, return_unique_onsets=True)
-    N_o = len(unique_onset_idxs)
-    W_onsetwise = notewise_to_onsetwise(W_notewise, unique_onset_idxs)
-
-    rng = np.random.RandomState(1984)
-
-    dr = DynamicsRules(rng=rng)
-
-    velocity_trend, velocity_dev = dr.compute_dynamics(part, W_notewise, names)
-
-    
-    velocity_dev = compute_accents(W_notewise, names, velocity_trend, rng=rng)

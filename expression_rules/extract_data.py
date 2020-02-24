@@ -24,7 +24,7 @@ if __name__ == '__main__':
     fn = '../data_examples/mozart_k331.musicxml'
     part = partitura.load_musicxml(fn, force_note_ids=True)
     score.expand_grace_notes(part)
-    part = score.unfold_part_maximal(part)
+    # part = score.unfold_part_maximal(part)
 
     # extract metrical features
     metrical, metrical_names = bf.metrical_strength_basis(part)

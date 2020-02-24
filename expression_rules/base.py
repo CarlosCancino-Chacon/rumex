@@ -51,3 +51,34 @@ def _get_score_info(part):
 
     return pitch, onsets, duration, unique_onsets, unique_onset_idxs
 
+
+def _get_constant_markings_array(W_onsetwise, names, unique_onsets, constant_markings, default_marking):
+    """
+    Get an array indicating the starting points of constant markings
+    """
+    # get starting point of all constant markings
+    cm_array = []
+    for on, w in zip(unique_onsets, W_onsetwise):
+
+        for ci, dm in enumerate(constant_markings):
+            if dm in names:
+                di = names.index(dm)
+                if w[di] != 0:
+                    try:
+                        if cm_array[-1][1] != ci:
+                            cm_array.append((on, ci))
+                    except:
+                        cm_array.append((on, ci))
+
+    # if there are no constant markings, assume `default_marking`
+    if len(cm_array) == 0:
+        cm_array.append((unique_onsets.min(), int(np.where(constant_markings == default_marking)[0])))
+    cm_array = np.array(cm_array)
+
+    # assume `default_marking` if there is no marking at the begining of the piece
+    if cm_array[0, 0] != unique_onsets.min():
+        cm_array = np.insert(cm_array, 0, (unique_onsets.min(),
+                                           int(np.where(constant_markings == default_marking)[0])))
+
+    return cm_array
+

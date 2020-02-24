@@ -2,7 +2,7 @@ import numpy as np
 
 from basismixer.utils import get_unique_onset_idxs, notewise_to_onsetwise, onsetwise_to_notewise
 
-from base import PerformanceRules, _get_score_info
+from base import PerformanceRules, _get_score_info, _get_constant_markings_array
 
 TEMPO_MARKINGS_BPM = {
     "larghissimo" : (18, 20),
@@ -19,7 +19,25 @@ TEMPO_MARKINGS_BPM = {
     "vivace": (140, 168),
     "vivacissimo": (168, 200),
     "presto": (168, 200),
-    "prestissimo": (180, 210)}
+    "prestissimo": (180, 210)
+}
+
+CONSTANT_MARKINGS = np.array(["larghissimo",
+                              "grave",
+                              "largo",
+                              "larghetto",
+                              "adagio",
+                              "adagietto",
+                              "andante",
+                              "andantino",
+                              "moderato",
+                              "allegretto",
+                              "allegro"
+                              "vivace",
+                              "vivacissimo",
+                              "presto",
+                              "prestissimo",
+])
 
 
 RNG = np.random.RandomState(1984)
@@ -94,18 +112,34 @@ def tempo_markings_rules(W, names, onsets, rng=RNG,
                                                     rng=rng)
 
     beat_period = _initialize_beat_period(unique_onsets, tm_array, beat_period_per_tm)
-    
-    # beat_period = np.ones(N_o) * 60 / 108.
-
-    # for tm in TEMPO_MARKINGS_BPM:
-    #     if tm in names:
-    #         ti = names.index(tm)
-    #         t_idx = np.where(W_onsetwise[:, ti] == 1)[0]
-    #         bp_low, bp_high = TEMPO_MARKINGS_BPM[tm]
-    #         beat_period[t_idx] = 60. / rng.randint(bp_low, bp_high)
 
 
     return beat_period
+
+def _get_constant_tempo_markings_map(W_onsetwise, names, unique_onsets, rng=RNG):
+
+    # tm_array = []
+    # for on, w in zip(unique_onsets, W_onsetwise):
+
+    #     for ti, tm in enumerate(CONSTANT_MARKINGS):
+    #         if tm in names:
+    #             if w[names.index(tm)] != 0:
+    #                 try:
+    #                     if tm_array[-1][1] != ti:
+    #                         tm_array.append((on, ti))
+    #                 except:
+    #                     tm_array.append((on, ti))
+
+    # if len(tm_array) == 0:
+    #     tm_array.append((unique_onsets.min(), int(np.where(CONSTANT_MARKINGS == 'moderato')[0])))
+    # tm_array = np.array(tm_array)
+    tm_array = _get_constant_markings_array(W_onsetwise=W_onsetwise,
+                                            names=names,
+                                            unique_onsets=unique_onsets,
+                                            constant_markings=CONSTANT_MARKINGS,
+                                            default_marking='moderato')
+
+    return tm_array
 
 
 def _initialize_beat_period(W_onsetwise, names, unique_onsets):
@@ -125,7 +159,7 @@ def _initialize_beat_period(W_onsetwise, names, unique_onsets):
 
     return beat_period
 
-    
+
 
 
     # measure_array = []
@@ -150,7 +184,7 @@ def _initialize_beat_period(W_onsetwise, names, unique_onsets):
     # beat_period[final_ritard_idxs] *= rit_curve
     # return beat_period
 
-    
+
 def friberg_sundberg_rit(len_c, r_w=0.5, r_q=2.0):
     """
     Compute ritard_curve
@@ -167,5 +201,5 @@ def friberg_sundberg_rit(len_c, r_w=0.5, r_q=2.0):
 
 
 
-    
-    
+
+
