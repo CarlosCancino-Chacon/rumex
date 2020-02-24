@@ -3,11 +3,11 @@ from scipy.interpolate import interp1d
 
 from basismixer.utils import get_unique_onset_idxs, notewise_to_onsetwise, onsetwise_to_notewise
 
-from base import (PerformanceRules,
-                  _get_score_info,
-                  _get_constant_markings_array_and_maps,
-                  _initialize_onsetwise_parameter,
-                  compute_increase_decrease_profile)
+from expression_rules.base import (PerformanceRules,
+                                   _get_score_info,
+                                   _get_constant_markings_array_and_maps,
+                                   _initialize_onsetwise_parameter,
+                                   compute_increase_decrease_profile)
 
 # Range values for each dynamics marking
 DYNAMICS_MARKINGS_VELOCITY = {"ppppp": (5, 12),

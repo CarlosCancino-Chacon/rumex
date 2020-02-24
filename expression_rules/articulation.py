@@ -2,7 +2,7 @@ import numpy as np
 
 from basismixer.utils import get_unique_onset_idxs, notewise_to_onsetwise, onsetwise_to_notewise
 
-from base import PerformanceRules, _get_score_info
+from expression_rules.base import PerformanceRules, _get_score_info
 
 ARTICULATION_MARKINGS_RATIO = {"staccato": (0.4, 0.6),
                                "tenuto": (0.7, 0.9),
