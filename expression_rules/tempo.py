@@ -105,6 +105,23 @@ def tempo_markings_rules(W, names, onsets, rng=RNG,
                          beat_period=None,
                          *args, **kwargs):
     """
+    Rules for constant and gradual tempo markings.
+
+    Parameters
+    ----------
+    W : np.ndarray
+    names : list
+    onsets : np.array
+    rng : np.random.RandomState
+    unique_onset_idxs: list or None
+    unique_onsets: np.array or None
+    beat_period : np.array
+
+    Returns
+    -------
+    beat_period : np.array
+        Beat period for each note (all notes in the same score position
+        have the same beat period)
     Notes
     -----
     This method overwrites beat_period if given
