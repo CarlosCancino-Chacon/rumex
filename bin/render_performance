@@ -2,6 +2,7 @@
 import argparse
 import json
 import os
+import sys
 
 import basismixer
 import basismixer.basisfunctions as bf
@@ -17,6 +18,9 @@ from expression_rules import (DynamicsRules, DEFAULT_DYNAMICS_PIPELINE,
                               TempoRules, DEFAULT_TEMPO_PIPELINE)
 
 RNG = np.random.RandomState(1984)
+
+SOURCE_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+sys.path.append(SOURCE_DIR)
 
 DEFAULT_CONFIG = dict(
     dynamics=dict(pipeline=DEFAULT_DYNAMICS_PIPELINE,
