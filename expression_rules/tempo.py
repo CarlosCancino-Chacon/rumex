@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.interpolate import interp1d
+from scipy.misc import derivative
 
 from basismixer.utils import get_unique_onset_idxs, notewise_to_onsetwise, onsetwise_to_notewise
 
@@ -25,6 +26,7 @@ TEMPO_MARKINGS_BPM = {
     "scherzando": (115, 130),
     "allegro": (120, 168),
     "animato": (120, 150),
+    "mosso": (120, 150), 
     "leggiero": (120, 145),
     "agitato": (120, 145),
     "vivace": (140, 168),
@@ -38,6 +40,7 @@ CONSTANT_MARKINGS = np.array(["larghissimo",
                               "grave",
                               "largo",
                               "larghetto",
+                              "pesante",
                               "adagio",
                               "adagietto",
                               "andante",
@@ -46,8 +49,10 @@ CONSTANT_MARKINGS = np.array(["larghissimo",
                               "allegretto",
                               "scherzando",
                               "animato",
-                              "leggiero"
-                              "allegro"
+                              "leggiero",
+                              "allegro",
+                              "animato",
+                              "mosso",
                               "agitato",
                               "vivace",
                               "vivo",
@@ -60,9 +65,11 @@ CONSTANT_MARKINGS = np.array(["larghissimo",
 RNG = np.random.RandomState(1984)
 
 DEFAULT_PIPELINE = ['tempo_markings_rules',
+                    # 'ioi_section_rules',
+                    'measure_pattern_rules',
                     'fermata_rules',
+                    'final_ritardando_rules',
                     'motor_noise_rules'
-                    # 'final_ritardando_rules',
 ]
 
 class TempoRules(PerformanceRules):
@@ -100,6 +107,11 @@ class TempoRules(PerformanceRules):
                                timing=timing,
                                part=part,
                                *args, **kwargs)
+
+            import matplotlib.pyplot as plt
+            plt.plot(onsets, beat_period)
+            plt.show()
+
         return beat_period
 
 
@@ -142,7 +154,6 @@ def tempo_markings_rules(W, names, onsets, rng=RNG,
 
 
     W_onsetwise = notewise_to_onsetwise(W, unique_onset_idxs)
-
     (tm_array, tempo_markings_map, next_tempo_markings_map) = _get_constant_markings_array_and_maps(
         W_onsetwise=W_onsetwise,
         names=names,
@@ -186,14 +197,31 @@ def _sample_beat_period_per_dm(tm_array, rng):
                           for _, tm in tm_array]
     return beat_period_per_tm
 
-def final_ritardando_rules(W, names, onsets, rng=RNG,
+def final_ritardando_rules(W, names, onsets, part,
+                           num_measures=1,
+                           rng=RNG,
                            unique_onset_idxs=None,
                            unique_onsets=None,
                            beat_period=None,
                            *args, **kwargs):
 
-    
-    return
+    if beat_period is None:
+        beat_period = np.ones(len(W)) * 60 / 108
+
+    if unique_onset_idxs is None or unique_onsets is None:
+        unique_onset_idxs, unique_onsets = get_unique_onset_idxs(onsets, return_unique_onsets=True)            
+
+    beats, _ = part.time_signature_map(part.inv_beat_map(unique_onsets.max()))
+
+    final_rit_idxs = np.where(unique_onsets >= onsets.max() - (num_measures * beats))[0]
+
+    final_rit = friberg_sundberg_rit(len(final_rit_idxs))
+
+    for fr, ix in zip(final_rit, final_rit_idxs):
+
+        beat_period[unique_onset_idxs[ix]] *= fr
+
+    return beat_period
 
 def fermata_rules(W, names, onsets, part,
                   unique_onset_idxs=None,
@@ -208,7 +236,10 @@ def fermata_rules(W, names, onsets, part,
     fermata_tempo_deviations = np.ones(len(W))
     if 'fermata' in names:
         if unique_onset_idxs is None or unique_onsets is None:
-            unique_onset_idxs, unique_onsets = get_unique_onset_idxs(onsets, return_unique_onsets=True)            
+            unique_onset_idxs, unique_onsets = get_unique_onset_idxs(onsets,
+                                                                     return_unique_onsets=True)
+
+        
     
         fermata = notewise_to_onsetwise(W, unique_onset_idxs)[:, names.index('fermata')]
 
@@ -216,7 +247,7 @@ def fermata_rules(W, names, onsets, part,
 
         _ftd = []
         for fix in fermata_idxs:
-            beats, _ = part.time_signature_map(unique_onsets[fix])
+            beats, _ = part.time_signature_map(part.inv_beat_map(unique_onsets[fix]))
             f_onset = unique_onsets[fix]
             f_start = f_onset - beats
             f_end = f_onset + 1e-2
@@ -239,18 +270,30 @@ def fermata_rules(W, names, onsets, part,
         max_rit_func = interp1d(_ftd[:, 0], _ftd[:, 2], kind='previous',
                                 bounds_error=False, fill_value=(1, 1))
 
-        fermata_tempo_deviations = (ftd_func(onsets) ** 3) * max_rit_func(onsets) + 1
+        fermata_tempo_deviations = (ftd_func(onsets) ** 5) * max_rit_func(onsets) + 1
 
     beat_period *= fermata_tempo_deviations
 
     return beat_period
 
 
-def motor_noise_rules(beat_period, rng=RNG, std=0.05, *args, **kwargs):
+def motor_noise_rules(beat_period,
+                      onsets,
+                      unique_onset_idxs=None,
+                      unique_onsets=None,
+                      rng=RNG, std=0.05, *args, **kwargs):
 
-    beat_period += rng.normal(loc=0, scale=std * beat_period.mean(), size=len(beat_period))
+    if unique_onset_idxs is None or unique_onsets is None:
+        unique_onset_idxs, unique_onsets = get_unique_onset_idxs(onsets, return_unique_onsets=True)
 
-    return beat_period
+    beat_period_onsetwise = notewise_to_onsetwise(beat_period.reshape(-1, 1), unique_onset_idxs).reshape(-1, )
+
+    beat_period_onsetwise += rng.uniform(low=-std* beat_period_onsetwise.mean(),
+                               high=std * beat_period_onsetwise.mean(),
+                               size=len(beat_period_onsetwise))
+    # beat_period += rng.normal(loc=0, scale=std * beat_period.mean(), size=len(beat_period))
+
+    return onsetwise_to_notewise(beat_period_onsetwise, unique_onset_idxs)
 
 
 def friberg_sundberg_rit(len_c, r_w=0.5, r_q=2.0):
@@ -264,3 +307,106 @@ def friberg_sundberg_rit(len_c, r_w=0.5, r_q=2.0):
 
     else:
         return 1.0
+
+
+class RhythmicPattern(object):
+    def __init__(self, pattern, exponent=1):
+        self.pattern = pattern
+        self.exponent = exponent
+        self.func = interp1d(self.pattern[:, 0], self.pattern[:, 1],
+                             kind='quadratic',
+                             bounds_error=False,
+                             fill_value=(0, 0))
+
+    def __call__(self, onsets):
+        return self.func(onsets) ** self.exponent
+        
+        
+        
+_TS_TRIPLE_PATTERN = np.array([[0, 1],
+                         [0.5, 0],
+                         [1, 1]])
+TRIPLE_PATTERN = RhythmicPattern(_TS_TRIPLE_PATTERN)
+
+_TS_DUPLE_PATTERN = np.array([[0, 1],
+                              [.25, 0],
+                              [0.5, 0.5],
+                              [0.75, 0],
+                              [1, 1]])
+DUPLE_PATTERN = RhythmicPattern(_TS_DUPLE_PATTERN)
+
+def measure_pattern_rules(W, names,
+                          part,
+                          onsets,
+                          beat_period=None,
+                          unique_onset_idxs=None,
+                          unique_onsets=None,
+                          max_dev=1.15,
+                          min_dev=1, *args, **kwargs):
+
+    if beat_period is None:
+        beat_period = np.ones(len(W)) * 60 / 108
+
+    if unique_onset_idxs is None or unique_onsets is None:
+        unique_onset_idxs, unique_onsets = get_unique_onset_idxs(onsets,
+                                                                 return_unique_onsets=True)
+
+    beat_phase = notewise_to_onsetwise(W, unique_onset_idxs)[:, names.index('beat_phase')]
+
+    time_signatures = np.array([part.time_signature_map(o) for o in part.inv_beat_map(unique_onsets)])
+
+    unique_time_signatures = np.unique(time_signatures, axis=0)
+    unique_ts_idxs = [np.where(np.logical_and(time_signatures[:, 0] == uts[0],
+                                              time_signatures[:, 1] == uts[1]))[0]
+                      for uts in unique_time_signatures]
+
+    pattern_deviation = np.ones(len(unique_onsets))
+    for uts, uix in zip(unique_time_signatures, unique_ts_idxs):
+
+        if uts[0] in (3, 9):
+            pf = TRIPLE_PATTERN
+        elif uts[0] in (2, 4, 6, 8, 12):
+            pf = DUPLE_PATTERN
+        else:
+            # Default for now...
+            pf = TRIPLE_PATTERN
+
+        pattern_deviation[uix] = (max_dev - min_dev) * pf(beat_phase[uix]) + min_dev
+
+    pattern_deviation = onsetwise_to_notewise(pattern_deviation, unique_onset_idxs)
+    
+    return beat_period * pattern_deviation
+
+
+def ioi_section_rules(W, names, onsets,
+                      beat_period=None,
+                      unique_onset_idxs=None,
+                      unique_onsets=None,
+                      scale=5,
+                      *args, **kwargs):
+
+    if beat_period is None:
+        beat_period = np.ones(len(W)) * 60 / 108
+
+    if unique_onset_idxs is None or unique_onsets is None:
+        unique_onset_idxs, unique_onsets = get_unique_onset_idxs(onsets,
+                                                                 return_unique_onsets=True)
+
+    beat_period_onsetwise = notewise_to_onsetwise(beat_period.reshape(-1, 1), unique_onset_idxs).reshape(-1, )
+
+    s_ioi = np.diff(unique_onsets)
+
+    small_ioi_idxs = np.where(s_ioi < 0.25)[0]
+
+    small_iois = s_ioi[small_ioi_idxs] / 0.25
+    # p_ioi = beat_period_onsetwise[:-1] * s_ioi
+
+    tempo_scale = np.ones_like(beat_period_onsetwise)
+
+    tempo_scale[small_ioi_idxs] = 1 + np.exp(-scale *small_iois)
+
+    tempo_scale = onsetwise_to_notewise(tempo_scale.reshape(-1, 1), unique_onset_idxs).reshape(-1, )
+
+    beat_period *= tempo_scale
+    
+    return beat_period

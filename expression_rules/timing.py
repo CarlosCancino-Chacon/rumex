@@ -6,7 +6,8 @@ from expression_rules.base import PerformanceRules, _get_score_info
 
 RNG = np.random.RandomState(1984)
 
-DEFAULT_PIPELINE = ['mechanical_lead_rules']
+DEFAULT_PIPELINE = ['mechanical_lead_rules',
+                    'motor_noise_rules']
 
 class TimingRules(PerformanceRules):
     def __init__(self, pipeline=DEFAULT_PIPELINE, rng=RNG):
@@ -53,6 +54,9 @@ def mechanical_lead_rules(W, names, pitch, timing=None, velocity_trend=None, vel
     if velocity_dev is None:
         velocity_dev = np.zeros_like(velocity_trend)
 
+    if timing is None:
+        timing = np.zeros(len(W))
+
     velocity = (velocity_trend - velocity_dev) * 127
     timing += mechanical_lead(pitch, velocity)
 
@@ -65,3 +69,13 @@ def mechanical_lead(pitch, velocity, lead=0.05):
     """
     return (np.exp((pitch - 127) / 127.) *
             np.exp(-(velocity - 127) / 127) * lead)
+
+
+def motor_noise_rules(W, names, timing=None, rng=RNG, std=0.01, *args, **kwargs):
+
+    if timing is None:
+        timing = np.zeros(len(W))
+
+    timing += rng.uniform(low=-std, high=std, size=len(timing))
+
+    return timing
