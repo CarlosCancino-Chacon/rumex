@@ -1,6 +1,6 @@
-# Performance Rules
+# RuMEx
 
-A rule-based system for rendering expressive performances.
+RuMEx is a rule-based system for rendering expressive performances.
 
 ## Setup
 It is important to have the Partitura and Basis Mixer packages set up in your environment.

@@ -7,9 +7,11 @@ import sys
 import basismixer
 import basismixer.basisfunctions as bf
 from basismixer.performance_codec import get_performance_codec
+from basismixer.utils import load_score
 import numpy as np
 import partitura
 import partitura.score as score
+
 
 
 from expression_rules import (DynamicsRules, DEFAULT_DYNAMICS_PIPELINE,
@@ -96,7 +98,6 @@ def render_piece(part, config=DEFAULT_CONFIG, rng=RNG,
     predictions['timing'] = timing
     predictions['articulation_log'] = articulation_log
 
-
     pc = get_performance_codec(parameter_names)
     predicted_ppart = pc.decode(part, predictions)
 
@@ -153,21 +154,10 @@ if __name__ == '__main__':
     else:
         rng = RNG
 
-    part = None
-    for loader in SCORE_LOADERS:
-        try:
-            part = loader(args.filename)
-            break
-        except:
-            pass
-
-    if part is None:
-        raise ValueError(('Could not load input score {0}. '
-                          'Is it in one of the accepted formats '
-                          '(MusicXML, MIDI)?').format(args.filename))
-        
+    part = load_score(args.filename)
     # Expand grace notes (seems to be broken?)
-    score.expand_grace_notes(part)
+    score.remove_grace_notes(part)
+    # score.expand_grace_notes(part)
     # TODO: fix unfold_part_maximal
     # part = score.unfold_part_maximal(part)
 

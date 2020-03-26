@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.interpolate import interp1d
 
 from basismixer.utils import get_unique_onset_idxs, notewise_to_onsetwise, onsetwise_to_notewise
 
@@ -59,6 +60,8 @@ CONSTANT_MARKINGS = np.array(["larghissimo",
 RNG = np.random.RandomState(1984)
 
 DEFAULT_PIPELINE = ['tempo_markings_rules',
+                    'fermata_rules',
+                    'motor_noise_rules'
                     # 'final_ritardando_rules',
 ]
 
@@ -95,6 +98,7 @@ class TempoRules(PerformanceRules):
                                velocity_dev=velocity_dev,
                                articulation_log=articulation_log,
                                timing=timing,
+                               part=part,
                                *args, **kwargs)
         return beat_period
 
@@ -182,6 +186,72 @@ def _sample_beat_period_per_dm(tm_array, rng):
                           for _, tm in tm_array]
     return beat_period_per_tm
 
+def final_ritardando_rules(W, names, onsets, rng=RNG,
+                           unique_onset_idxs=None,
+                           unique_onsets=None,
+                           beat_period=None,
+                           *args, **kwargs):
+
+    
+    return
+
+def fermata_rules(W, names, onsets, part,
+                  unique_onset_idxs=None,
+                  unique_onsets=None,
+                  beat_period=None,
+                  rng=RNG,
+                  *args, **kwargs):
+
+    if beat_period is None:
+        beat_period = np.ones(len(W)) * 60 / 108
+    
+    fermata_tempo_deviations = np.ones(len(W))
+    if 'fermata' in names:
+        if unique_onset_idxs is None or unique_onsets is None:
+            unique_onset_idxs, unique_onsets = get_unique_onset_idxs(onsets, return_unique_onsets=True)            
+    
+        fermata = notewise_to_onsetwise(W, unique_onset_idxs)[:, names.index('fermata')]
+
+        fermata_idxs = np.where(fermata != 0)[0]
+
+        _ftd = []
+        for fix in fermata_idxs:
+            beats, _ = part.time_signature_map(unique_onsets[fix])
+            f_onset = unique_onsets[fix]
+            f_start = f_onset - beats
+            f_end = f_onset + 1e-2
+            max_ritardando = 0.25 + 0.75 * rng.rand()
+            _ftd += [(f_start, 0, max_ritardando),
+                     (f_onset, 1, max_ritardando),
+                     (f_end, 0, max_ritardando)]
+
+        if _ftd[0][0] > unique_onsets.min():
+
+            _ftd.insert(0, (unique_onsets.min(), 0, 1))
+
+        if _ftd[-1][0] < unique_onsets.max():
+            _ftd.append((unique_onsets.max(), 0, 1))
+
+        _ftd = np.array(_ftd)
+
+        ftd_func = interp1d(_ftd[:, 0], _ftd[:, 1], kind='linear',
+                            bounds_error=False, fill_value='extrapolate')
+        max_rit_func = interp1d(_ftd[:, 0], _ftd[:, 2], kind='previous',
+                                bounds_error=False, fill_value=(1, 1))
+
+        fermata_tempo_deviations = (ftd_func(onsets) ** 3) * max_rit_func(onsets) + 1
+
+    beat_period *= fermata_tempo_deviations
+
+    return beat_period
+
+
+def motor_noise_rules(beat_period, rng=RNG, std=0.05, *args, **kwargs):
+
+    beat_period += rng.normal(loc=0, scale=std * beat_period.mean(), size=len(beat_period))
+
+    return beat_period
+
 
 def friberg_sundberg_rit(len_c, r_w=0.5, r_q=2.0):
     """
@@ -194,10 +264,3 @@ def friberg_sundberg_rit(len_c, r_w=0.5, r_q=2.0):
 
     else:
         return 1.0
-
-
-
-
-
-
-
