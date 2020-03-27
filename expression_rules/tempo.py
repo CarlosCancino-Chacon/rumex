@@ -108,9 +108,9 @@ class TempoRules(PerformanceRules):
                                part=part,
                                *args, **kwargs)
 
-            import matplotlib.pyplot as plt
-            plt.plot(onsets, beat_period)
-            plt.show()
+            # import matplotlib.pyplot as plt
+            # plt.plot(onsets, beat_period)
+            # plt.show()
 
         return beat_period
 
@@ -240,37 +240,38 @@ def fermata_rules(W, names, onsets, part,
                                                                      return_unique_onsets=True)
 
         
-    
+            
         fermata = notewise_to_onsetwise(W, unique_onset_idxs)[:, names.index('fermata')]
-
         fermata_idxs = np.where(fermata != 0)[0]
+        
+        if len(fermata_idxs) > 0:
+            _ftd = []
+            for fix in fermata_idxs:
+                beats, _ = part.time_signature_map(part.inv_beat_map(unique_onsets[fix]))
+                f_onset = unique_onsets[fix]
+                f_start = f_onset - beats
+                f_end = f_onset + 1e-2
+                max_ritardando = 0.25 + 0.75 * rng.rand()
+                _ftd += [(f_start, 0, max_ritardando),
+                         (f_onset, 1, max_ritardando),
+                         (f_end, 0, max_ritardando)]
 
-        _ftd = []
-        for fix in fermata_idxs:
-            beats, _ = part.time_signature_map(part.inv_beat_map(unique_onsets[fix]))
-            f_onset = unique_onsets[fix]
-            f_start = f_onset - beats
-            f_end = f_onset + 1e-2
-            max_ritardando = 0.25 + 0.75 * rng.rand()
-            _ftd += [(f_start, 0, max_ritardando),
-                     (f_onset, 1, max_ritardando),
-                     (f_end, 0, max_ritardando)]
 
-        if _ftd[0][0] > unique_onsets.min():
+            if _ftd[0][0] > unique_onsets.min():
 
-            _ftd.insert(0, (unique_onsets.min(), 0, 1))
+                _ftd.insert(0, (unique_onsets.min(), 0, 1))
 
-        if _ftd[-1][0] < unique_onsets.max():
-            _ftd.append((unique_onsets.max(), 0, 1))
+            if _ftd[-1][0] < unique_onsets.max():
+                _ftd.append((unique_onsets.max(), 0, 1))
 
-        _ftd = np.array(_ftd)
+            _ftd = np.array(_ftd)
 
-        ftd_func = interp1d(_ftd[:, 0], _ftd[:, 1], kind='linear',
-                            bounds_error=False, fill_value='extrapolate')
-        max_rit_func = interp1d(_ftd[:, 0], _ftd[:, 2], kind='previous',
-                                bounds_error=False, fill_value=(1, 1))
+            ftd_func = interp1d(_ftd[:, 0], _ftd[:, 1], kind='linear',
+                                bounds_error=False, fill_value='extrapolate')
+            max_rit_func = interp1d(_ftd[:, 0], _ftd[:, 2], kind='previous',
+                                    bounds_error=False, fill_value=(1, 1))
 
-        fermata_tempo_deviations = (ftd_func(onsets) ** 5) * max_rit_func(onsets) + 1
+            fermata_tempo_deviations = (ftd_func(onsets) ** 5) * max_rit_func(onsets) + 1
 
     beat_period *= fermata_tempo_deviations
 
