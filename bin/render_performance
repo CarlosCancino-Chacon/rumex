@@ -99,11 +99,13 @@ def render_piece(part, config=DEFAULT_CONFIG, rng=RNG,
     predictions['articulation_log'] = articulation_log
 
     pc = get_performance_codec(parameter_names)
-    predicted_ppart = pc.decode(part, predictions)
+    predicted_ppart = pc.decode(part, predictions,
+                                return_alignment=return_bfs)
 
     if return_bfs:
+        predicted_ppart, alignment = predicted_ppart
         # save basis functions, and predictions
-        return predicted_ppart, W, names, predictions
+        return predicted_ppart, W, names, predictions, alignment
     else:
         # Export predicted part
         return predicted_ppart
@@ -163,7 +165,7 @@ if __name__ == '__main__':
 
     # render piece
     if args.return_bfs:
-        predicted_ppart, W, names, predictions = render_piece(part,
+        predicted_ppart, W, names, predictions, alignment = render_piece(part,
                                             config=config,
                                             rng=rng,
                                             return_bfs=True)
@@ -172,6 +174,13 @@ if __name__ == '__main__':
                        predictions=predictions,
                        score_info=part.note_array)
         np.savez_compressed(args.features_outfile, **results)
+        out_match = args.outfile.replace('.mid', '.match')
+        partitura.save_match(alignment=alignment,
+                             ppart=predicted_ppart,
+                             spart=part,
+                             out=out_match,
+                             performer='RuMEx',
+                             piece=remove_score_extension(os.path.basename(args.filename)))
     else:
         predicted_ppart = render_piece(part,
                                        config=config,
