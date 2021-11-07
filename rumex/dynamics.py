@@ -3,7 +3,7 @@ from scipy.interpolate import interp1d
 
 from basismixer.utils import get_unique_onset_idxs, notewise_to_onsetwise, onsetwise_to_notewise
 
-from expression_rules.base import (PerformanceRules,
+from rumex.base import (PerformanceRules,
                                    _get_score_info,
                                    _get_constant_markings_array_and_maps,
                                    _initialize_onsetwise_parameter,

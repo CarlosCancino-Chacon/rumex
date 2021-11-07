@@ -2,7 +2,7 @@ import numpy as np
 
 from basismixer.utils import get_unique_onset_idxs, notewise_to_onsetwise, onsetwise_to_notewise
 
-from expression_rules.base import PerformanceRules, _get_score_info
+from rumex.base import PerformanceRules, _get_score_info
 
 RNG = np.random.RandomState(1984)
 

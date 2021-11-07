@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
 
+import partitura
+
 import numpy as np
 from scipy.interpolate import interp1d
 
@@ -45,8 +47,11 @@ class PerformanceRules(ABC):
 def _get_score_info(part):
     """Helper method for getting score information
     """
-    onsets = part.note_array['onset']
-    duration = part.note_array['duration']
+    note_array = part.note_array
+
+    onset_unit, duration_unit = partitura.utils.music.get_time_units_from_note_array(note_array)
+    onsets = part.note_array[onset_unit]
+    duration = part.note_array[duration_unit]
     pitch = part.note_array['pitch']
 
     unique_onset_idxs, unique_onsets = get_unique_onset_idxs(onsets, return_unique_onsets=True)
