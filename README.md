@@ -19,14 +19,14 @@ TODO: write requirements and restructure the code as a package!
 
 ## Usage
 
-The main program is `render_performance`. This program allows for generating an expressive performance given a score in MusicXML (preferred) or MIDI format.
+The main program is `RuMExRender`. This program allows for generating an expressive performance given a score in MusicXML (preferred) or MIDI format.
 
 The simplest way of generating a performance is
 ```bash
-./bin/render_performance --outfile out.mid score_filename.xml
+RuMExRender --outfile out.mid score_filename.xml
 ```
 
 For more information see 
 ```bash
-./bin/render_performance -h
+RuMExRender -h
 ```
