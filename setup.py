@@ -27,7 +27,8 @@ EXTRAS = {
 }
 
 SCRIPTS = [
-    "bin/RuMExRender",
+    # "bin/RuMExRender",
+    os.path.join("bin", "RuMExRender")
 ]
 
 
