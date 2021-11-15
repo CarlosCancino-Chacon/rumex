@@ -100,7 +100,6 @@ def render_piece(part, config=DEFAULT_CONFIG, rng=RNG, return_bfs=False):
         "timing",
         "articulation_log",
     ]
-
     predictions = np.zeros(len(W), dtype=[(pn, "f4") for pn in parameter_names])
     predictions["beat_period"] = beat_period
     predictions["velocity_trend"] = velocity_trend
@@ -134,12 +133,26 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser("Generate an expressive performance from a piece")
 
-    parser.add_argument("filename", help="Score to be rendered (MusicXML or MIDI)")
-    parser.add_argument("--config", help="Config file in JSON format", default=None)
     parser.add_argument(
-        "--return-bfs", help="Return features", action="store_true", default=False
+        "filename",
+        help="Score to be rendered (MusicXML or MIDI)"
     )
-    parser.add_argument("--outfile", help="Output MIDI file (optional)", default=None)
+    parser.add_argument(
+        "--config",
+        help="Config file in JSON format",
+        default=None
+    )
+    parser.add_argument(
+        "--return-bfs",
+        help="Return features",
+        action="store_true",
+        default=False
+    )
+    parser.add_argument(
+        "--outfile",
+        help="Output MIDI file (optional)",
+        default=None
+    )
     parser.add_argument(
         "--random-state",
         help="Seed for random number generator",
@@ -151,6 +164,12 @@ if __name__ == "__main__":
         help="Output file for storing bfs and parameters",
         default=None,
     )
+    parser.add_argument(
+        "--save-match",
+        help="Save match file",
+        action="store_true",
+        default=False
+)
 
     args = parser.parse_args()
 
@@ -172,7 +191,8 @@ if __name__ == "__main__":
     if args.random_state is not None:
         rng = np.random.RandomState(args.random_state)
     else:
-        rng = np.random.RandomState(np.random.randint(9999))  # RNG
+        random_state = np.random.randint(9999)
+        rng = np.random.RandomState(random_state)  # RNG
 
     part = load_score(args.filename)
 
@@ -187,14 +207,20 @@ if __name__ == "__main__":
     # part = score.unfold_part_maximal(part)
 
     # render piece
+    predicted_ppart, W, names, predictions, alignment = render_piece(
+        part, config=config, rng=rng, return_bfs=True
+    )
+
     if args.return_bfs:
-        predicted_ppart, W, names, predictions, alignment = render_piece(
-            part, config=config, rng=rng, return_bfs=True
-        )
         results = dict(
-            W=W, bf_names=names, predictions=predictions, score_info=part.note_array
+            W=W,
+            bf_names=names,
+            predictions=predictions,
+            score_info=part.note_array
         )
         np.savez_compressed(args.features_outfile, **results)
+
+    if args.save_match:
         out_match = args.outfile.replace(".mid", ".match")
         partitura.save_match(
             alignment=alignment,
@@ -204,7 +230,5 @@ if __name__ == "__main__":
             performer="RuMEx",
             piece=remove_score_extension(os.path.basename(args.filename)),
         )
-    else:
-        predicted_ppart = render_piece(part, config=config, rng=rng, return_bfs=False)
     # save as MIDI file
     partitura.save_performance_midi(predicted_ppart, args.outfile)

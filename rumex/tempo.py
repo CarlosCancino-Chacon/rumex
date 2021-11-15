@@ -79,10 +79,10 @@ DEFAULT_PIPELINE = [
     "tempo_markings_rules",
     "ioi_section_rules",
     "measure_pattern_rules",
+    "phrase_arch_rules",
     "fermata_rules",
-    # "final_ritardando_rules",
-    "motor_noise_rules",
-    # "phrase_arch_rules",
+    "final_ritardando_rules",
+    "motor_noise_rules"
 ]
 
 
@@ -258,12 +258,15 @@ def final_ritardando_rules(
 
     final_rit_idxs = np.where(unique_onsets >= onsets.max() - (num_measures * beats))[0]
 
+    init_onset = unique_onsets[final_rit_idxs].min()
+
     final_rit = friberg_sundberg_rit(len(final_rit_idxs))
 
-    for fr, ix in zip(final_rit, final_rit_idxs):
-
-        beat_period[unique_onset_idxs[ix]] *= fr
-
+    for ix in final_rit_idxs:
+        
+        fx = (unique_onsets[ix] - init_onset) / (onsets.max() - init_onset)
+        beat_period[unique_onset_idxs[ix]] *= final_rit(fx)
+        
     return beat_period
 
 
@@ -382,10 +385,10 @@ def friberg_sundberg_rit(len_c, r_w=0.5, r_q=2.0):
         ritard_curve = (1 + (r_w ** r_q - 1) * np.linspace(0, 1, 50)) ** (1.0 / r_q)
 
         ritard_curve_func = interp1d(
-            x=np.linspace(0, len_c, 50),
+            x=np.linspace(0, 1, 50),
             y=1.0 / ritard_curve,
             kind="linear",
-            bounds_error=True,
+            bounds_error=False,
             fill_value="extrapolate",
         )
         return ritard_curve_func
@@ -484,7 +487,9 @@ def phrase_arch_rules(
     beat_period=None,
     unique_onset_idxs=None,
     unique_onsets=None,
-    scale=0.5,
+    scale=0.15,
+    *args,
+    **kwargs
 ):
 
     if beat_period is None:
@@ -497,17 +502,33 @@ def phrase_arch_rules(
 
     x = np.linspace(-1, 1, 50)
 
-    y = rendering.minmax(x ** 2, lowest=1 - 0.5, highest=1)
+    y = rendering.minmax(x ** 2, lowest=1 - scale, highest=1)
 
-    paf = interp1d(x, y, kind="linear", bounds_error=False, fill_value=(1, 1))
+    paf = interp1d(np.linspace(0, 1, 50), y,
+                   kind="linear",
+                   bounds_error=False, fill_value=(1, 1))
 
     if phrases is None:
-        time_signatures = part.iter_all(partitura.score.TimeSignature)
+        # a "phrase" per bar
+        phrases = []
+        for m in part.iter_all(partitura.score.Measure):
+            phrases.append(part.beat_map([m.start.t, m.end.t]))
 
-        import pdb
+        phrases = np.array(phrases)
 
-        pdb.set_trace()
+    for pstart, pend in phrases:
+        valid_onset_idxs = np.where(
+            np.logical_and(unique_onsets >= pstart, unique_onsets <= pend)
+        )[0]
+        valid_onsets = unique_onsets[valid_onset_idxs]
 
+        if len(valid_onsets) > 0:
+            px = (valid_onsets - pstart) / (pend - pstart)
+            beat_period_dev = paf(px)
+            for vix, bpd in zip(valid_onset_idxs, beat_period_dev):
+                # print('before', beat_period[unique_onset_idxs[vix]])
+                beat_period[unique_onset_idxs[vix]] *= bpd
+                # print('after', beat_period[unique_onset_idxs[vix]], bpd)
     return beat_period
 
 
