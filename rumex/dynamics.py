@@ -1,7 +1,22 @@
+# Copyright (C) 2020-2026 Carlos Cancino-Chacón
+#
+# This file is part of RuMEx.
+#
+# RuMEx is free software: you can redistribute it and/or modify it under the terms of the GNU General
+# Public License as published by the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+#
+# RuMEx is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+# implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public
+# License for more details.
+#
+# You should have received a copy of the GNU General Public License along with RuMEx. If not, see
+# <https://www.gnu.org/licenses/>.
+
 import numpy as np
 from scipy.interpolate import interp1d
 
-from basismixer.utils import (
+from partitura.musicanalysis.performance_codec import (
     get_unique_onset_idxs,
     notewise_to_onsetwise,
     onsetwise_to_notewise,
@@ -36,6 +51,10 @@ DYNAMICS_MARKINGS_VELOCITY = {
 ACCENT_INCREASE = {
     "accent": (0.1, 0.2),
     "fz": (0.15, 0.2),
+    "sf": (0.15, 0.2),
+    "sfz": (0.15, 0.2),
+    # impulsive markings not recognized by partitura (e.g. "fz") are `unknown_impulsive`
+    "unknown_impulsive": (0.15, 0.2),
     "staccato": (0.02, 0.05),
     "tenuto": (-0.02, -0.01),
 }
@@ -254,13 +273,13 @@ def compute_crescendo_profile(
     Parameters
     ----------
     crescendo : np.ndarray
-        Value from the crescendo basis function for each score onset (i.e., `unique_onsets`)
-        The basis function evaluates to 0 at the start of the crescendo mark and 1 at the end and
-        zero otherwise. See `basismixer.basisfunction.loudness_direction_basis`.
+        Value from the crescendo note feature for each score onset (i.e., `unique_onsets`)
+        The note feature evaluates to 0 at the start of the crescendo mark and 1 at the end and
+        zero otherwise. See `partitura.musicanalysis.note_features.loudness_direction_feature`.
     diminuendo : np.ndarray
-        Value from the diminuendo basis function for each score onset (i.e., `unique_onsets`)
-        The basis function evaluates to 0 at the start of the diminuendo mark and 1 at the end and
-        zero otherwise. See `basismixer.basisfunction.loudness_direction_basis`.
+        Value from the diminuendo note feature for each score onset (i.e., `unique_onsets`)
+        The note feature evaluates to 0 at the start of the diminuendo mark and 1 at the end and
+        zero otherwise. See `partitura.musicanalysis.note_features.loudness_direction_feature`.
     unique_onsets : np.ndarray
         Unique score positions in beats in the score
     dynamics_markings_map : callable

@@ -1,234 +1,26 @@
 #!/usr/bin/env python
-import argparse
-import json
+# Copyright (C) 2020-2026 Carlos Cancino-Chacón
+#
+# This file is part of RuMEx.
+#
+# RuMEx is free software: you can redistribute it and/or modify it under the terms of the GNU General
+# Public License as published by the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+#
+# RuMEx is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+# implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public
+# License for more details.
+#
+# You should have received a copy of the GNU General Public License along with RuMEx. If not, see
+# <https://www.gnu.org/licenses/>.
+
+# Wrapper to run from the source tree without installing (an installed package provides the `RuMExRender` command)
 import os
 import sys
 
-import basismixer
-import basismixer.basisfunctions as bf
-from basismixer.performance_codec import get_performance_codec
-from basismixer.utils import load_score
-import numpy as np
-import partitura
-import partitura.score as score
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
-
-from rumex import (
-    DynamicsRules,
-    DEFAULT_DYNAMICS_PIPELINE,
-    ArticulationRules,
-    DEFAULT_ARTICULATION_PIPELINE,
-    TimingRules,
-    DEFAULT_TIMING_PIPELINE,
-    TempoRules,
-    DEFAULT_TEMPO_PIPELINE,
-)
-
-RNG = np.random.RandomState(1984)
-
-SOURCE_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-sys.path.append(SOURCE_DIR)
-
-DEFAULT_CONFIG = dict(
-    dynamics=dict(pipeline=DEFAULT_DYNAMICS_PIPELINE, basis_functions="all"),
-    tempo=dict(pipeline=DEFAULT_TEMPO_PIPELINE, basis_functions="all"),
-    timing=dict(pipeline=DEFAULT_TIMING_PIPELINE, basis_functions="all"),
-    articulation=dict(pipeline=DEFAULT_ARTICULATION_PIPELINE, basis_functions="all"),
-)
-
-SCORE_LOADERS = [
-    partitura.load_musicxml,
-    partitura.load_score_midi,
-    partitura.load_via_musescore,
-]
-
-
-def render_piece(part, config=DEFAULT_CONFIG, rng=RNG, return_bfs=False):
-    """
-    Render a piece from a score
-    """
-
-    bf_subsets = []
-    for par in config:
-        bfs = config[par]["basis_functions"]
-        if bfs == "all":
-            bfs = bf.list_basis_functions()
-        bf_subsets += bfs
-
-    bf_subsets = list(set(bf_subsets))
-
-    W = []
-    names = []
-
-    for i, b in enumerate(bf_subsets):
-        bfunc = getattr(bf, b, None)
-
-        if bfunc is None:
-            print("{0} not found in `basismixer.basis_functions`".format(b))
-
-        else:
-            # print('Computing {0} ({1}/{2})'.format(b, i + 1, len(bf_subsets)))
-            w, n = bfunc(part)
-            W.append(w)
-            names += n
-
-    W = np.column_stack(W)
-
-    # Initialize rule pipelines
-    dr = DynamicsRules(pipeline=config["dynamics"]["pipeline"], rng=rng)
-    ter = TempoRules(pipeline=config["tempo"]["pipeline"], rng=rng)
-    ar = ArticulationRules(pipeline=config["articulation"]["pipeline"], rng=rng)
-    tir = TimingRules(pipeline=config["timing"]["pipeline"], rng=rng)
-
-    # Compute expressive parameters
-    velocity_trend, velocity_dev = dr.compute_parameters(part=part, W=W, names=names)
-    beat_period = ter.compute_parameters(part=part, W=W, names=names)
-    articulation_log = ar.compute_parameters(part=part, W=W, names=names)
-    timing = tir.compute_parameters(
-        part=part,
-        W=W,
-        names=names,
-        velocity_trend=velocity_trend,
-        velocity_dev=velocity_dev,
-    )
-
-    # Concatenate
-    parameter_names = [
-        "beat_period",
-        "velocity_trend",
-        "velocity_dev",
-        "timing",
-        "articulation_log",
-    ]
-    predictions = np.zeros(len(W), dtype=[(pn, "f4") for pn in parameter_names])
-    predictions["beat_period"] = beat_period
-    predictions["velocity_trend"] = velocity_trend
-    predictions["velocity_dev"] = velocity_dev
-    predictions["timing"] = timing
-    predictions["articulation_log"] = articulation_log
-
-    pc = get_performance_codec(parameter_names)
-    predicted_ppart = pc.decode(part, predictions, return_alignment=return_bfs)
-
-    if return_bfs:
-        predicted_ppart, alignment = predicted_ppart
-        # save basis functions, and predictions
-        return predicted_ppart, W, names, predictions, alignment
-    else:
-        # Export predicted part
-        return predicted_ppart
-
-
-def remove_score_extension(filename):
-
-    extensions = [".xml", ".mid", ".musicxml"]
-
-    for ex in extensions:
-        filename.replace(ex, "")
-
-    return filename
-
+from rumex.cli import main
 
 if __name__ == "__main__":
-
-    parser = argparse.ArgumentParser("Generate an expressive performance from a piece")
-
-    parser.add_argument(
-        "filename",
-        help="Score to be rendered (MusicXML or MIDI)"
-    )
-    parser.add_argument(
-        "--config",
-        help="Config file in JSON format",
-        default=None
-    )
-    parser.add_argument(
-        "--return-bfs",
-        help="Return features",
-        action="store_true",
-        default=False
-    )
-    parser.add_argument(
-        "--outfile",
-        help="Output MIDI file (optional)",
-        default=None
-    )
-    parser.add_argument(
-        "--random-state",
-        help="Seed for random number generator",
-        default=None,
-        type=int,
-    )
-    parser.add_argument(
-        "--features-outfile",
-        help="Output file for storing bfs and parameters",
-        default=None,
-    )
-    parser.add_argument(
-        "--save-match",
-        help="Save match file",
-        action="store_true",
-        default=False
-)
-
-    args = parser.parse_args()
-
-    if args.config is not None:
-        config = json.load(open(args.config))
-    else:
-        config = DEFAULT_CONFIG
-
-    if args.outfile is None:
-        out_dir = os.path.dirname(args.filename)
-        filename = remove_score_extension(os.path.basename(args.filename)) + ".mid"
-        args.outfile = os.path.join(out_dir, filename)
-
-    if args.features_outfile is None:
-        out_dir = os.path.dirname(args.filename)
-        filename = remove_score_extension(os.path.basename(args.filename)) + ".npz"
-        args.features_outfile = os.path.join(out_dir, filename)
-
-    if args.random_state is not None:
-        rng = np.random.RandomState(args.random_state)
-    else:
-        random_state = np.random.randint(9999)
-        rng = np.random.RandomState(random_state)  # RNG
-
-    part = load_score(args.filename)
-
-    if isinstance(part, list):
-        part = partitura.score.merge_parts(part)
-    elif isinstance(part, partitura.score.PartGroup):
-        part = partitura.score.merge_parts(part.children)
-    # Expand grace notes (seems to be broken?)
-    score.remove_grace_notes(part)
-    # score.expand_grace_notes(part)
-    # TODO: fix unfold_part_maximal
-    # part = score.unfold_part_maximal(part)
-
-    # render piece
-    predicted_ppart, W, names, predictions, alignment = render_piece(
-        part, config=config, rng=rng, return_bfs=True
-    )
-
-    if args.return_bfs:
-        results = dict(
-            W=W,
-            bf_names=names,
-            predictions=predictions,
-            score_info=part.note_array
-        )
-        np.savez_compressed(args.features_outfile, **results)
-
-    if args.save_match:
-        out_match = args.outfile.replace(".mid", ".match")
-        partitura.save_match(
-            alignment=alignment,
-            ppart=predicted_ppart,
-            spart=part,
-            out=out_match,
-            performer="RuMEx",
-            piece=remove_score_extension(os.path.basename(args.filename)),
-        )
-    # save as MIDI file
-    partitura.save_performance_midi(predicted_ppart, args.outfile)
+    main()

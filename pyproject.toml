@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rumex"
+version = "0.1.0"
+description = "A rule-based system for generating expressive performances"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+authors = [{ name = "Carlos Cancino-Chacón", email = "carloscancinochacon@gmail.com" }]
+keywords = ["music", "performance", "midi"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: Implementation :: CPython",
+]
+dependencies = ["numpy>=2.0", "scipy>=1.13", "partitura>=1.9.0"]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[project.urls]
+Homepage = "https://github.com/CarlosCancino-Chacon/rumex"
+
+[project.scripts]
+RuMExRender = "rumex.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["rumex*"]

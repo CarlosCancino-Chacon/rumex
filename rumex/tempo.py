@@ -1,14 +1,27 @@
+# Copyright (C) 2020-2026 Carlos Cancino-Chacón
+#
+# This file is part of RuMEx.
+#
+# RuMEx is free software: you can redistribute it and/or modify it under the terms of the GNU General
+# Public License as published by the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+#
+# RuMEx is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+# implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public
+# License for more details.
+#
+# You should have received a copy of the GNU General Public License along with RuMEx. If not, see
+# <https://www.gnu.org/licenses/>.
+
 import numpy as np
 from scipy.interpolate import interp1d
-from scipy.misc import derivative
 
 import partitura
-from basismixer.utils import (
+from partitura.musicanalysis.performance_codec import (
     get_unique_onset_idxs,
     notewise_to_onsetwise,
     onsetwise_to_notewise,
 )
-import basismixer.utils.rendering as rendering
 
 from rumex.base import (
     PerformanceRules,
@@ -16,6 +29,7 @@ from rumex.base import (
     _get_constant_markings_array_and_maps,
     _initialize_onsetwise_parameter,
     compute_increase_decrease_profile,
+    minmax,
 )
 
 
@@ -254,7 +268,7 @@ def final_ritardando_rules(
             onsets, return_unique_onsets=True
         )
 
-    beats, _ = part.time_signature_map(part.inv_beat_map(unique_onsets.max()))
+    beats, _ = part.time_signature_map(part.inv_beat_map(unique_onsets.max()))[:2]
 
     final_rit_idxs = np.where(unique_onsets >= onsets.max() - (num_measures * beats))[0]
 
@@ -301,7 +315,7 @@ def fermata_rules(
             for fix in fermata_idxs:
                 beats, _ = part.time_signature_map(
                     part.inv_beat_map(unique_onsets[fix])
-                )
+                )[:2]
                 f_onset = unique_onsets[fix]
                 f_start = f_onset - beats
                 f_end = f_onset + 1e-2
@@ -447,7 +461,7 @@ def measure_pattern_rules(
     ]
 
     time_signatures = np.array(
-        [part.time_signature_map(o) for o in part.inv_beat_map(unique_onsets)]
+        [part.time_signature_map(o)[:2] for o in part.inv_beat_map(unique_onsets)]
     )
 
     unique_time_signatures = np.unique(time_signatures, axis=0)
@@ -502,7 +516,7 @@ def phrase_arch_rules(
 
     x = np.linspace(-1, 1, 50)
 
-    y = rendering.minmax(x ** 2, lowest=1 - scale, highest=1)
+    y = minmax(x ** 2, lowest=1 - scale, highest=1)
 
     paf = interp1d(np.linspace(0, 1, 50), y,
                    kind="linear",

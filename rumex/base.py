@@ -1,3 +1,18 @@
+# Copyright (C) 2020-2026 Carlos Cancino-Chacón
+#
+# This file is part of RuMEx.
+#
+# RuMEx is free software: you can redistribute it and/or modify it under the terms of the GNU General
+# Public License as published by the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+#
+# RuMEx is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+# implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public
+# License for more details.
+#
+# You should have received a copy of the GNU General Public License along with RuMEx. If not, see
+# <https://www.gnu.org/licenses/>.
+
 from abc import ABC, abstractmethod
 
 import partitura
@@ -5,9 +20,25 @@ import partitura
 import numpy as np
 from scipy.interpolate import interp1d
 
-from basismixer.utils import get_unique_onset_idxs
+from partitura.musicanalysis.performance_codec import (
+    get_unique_onset_idxs,
+    notewise_to_onsetwise,
+    onsetwise_to_notewise,
+)
 
 RNG = np.random.RandomState(1984)
+
+
+def minmax(x, lowest, highest):
+    """Linearly rescale `x` to the range [`lowest`, `highest`] (all `lowest` if `x` is constant)."""
+    x = np.asarray(x, dtype=float)
+    x_min, x_max = x.min(), x.max()
+    if np.isclose(x_max, x_min):
+        x_hat = np.zeros_like(x)
+    else:
+        x_hat = (x - x_min) / (x_max - x_min)
+    return (highest - lowest) * x_hat + lowest
+
 
 class PerformanceRules(ABC):
     """
@@ -47,12 +78,12 @@ class PerformanceRules(ABC):
 def _get_score_info(part):
     """Helper method for getting score information
     """
-    note_array = part.note_array
+    note_array = part.note_array()
 
     onset_unit, duration_unit = partitura.utils.music.get_time_units_from_note_array(note_array)
-    onsets = part.note_array[onset_unit]
-    duration = part.note_array[duration_unit]
-    pitch = part.note_array['pitch']
+    onsets = note_array[onset_unit]
+    duration = note_array[duration_unit]
+    pitch = note_array['pitch']
 
     unique_onset_idxs, unique_onsets = get_unique_onset_idxs(onsets, return_unique_onsets=True)
 
@@ -84,14 +115,14 @@ def _get_constant_markings_array_and_maps(W_onsetwise, names, unique_onsets,
                         
     # if there are no constant markings, assume `default_marking`
     if len(cm_array) == 0:
-        cm_array.append((unique_onsets.min(), int(np.where(constant_markings == default_marking)[0])))
+        cm_array.append((unique_onsets.min(), int(np.where(constant_markings == default_marking)[0][0])))
     cm_array = np.array(cm_array)
 
     # assume `default_marking` if there is no marking at the begining of the piece
     if cm_array[0, 0] != unique_onsets.min():
         cm_array = np.insert(cm_array, [0],
                              np.array((unique_onsets.min(),
-                                       int(np.where(constant_markings == default_marking)[0]))),
+                                       int(np.where(constant_markings == default_marking)[0][0]))),
                              axis=0)
 
     # Create constant markings map
@@ -142,13 +173,13 @@ def compute_increase_decrease_profile(increase, decrease, unique_onsets, constan
     Parameters
     ----------
     increase : np.ndarray
-        Value of an `_incr` basis function for each score onset (i.e., `unique_onsets`)
-        The basis function evaluates to 0 at the start of the crescendo mark and 1 at the end and
-        zero otherwise. See e.g, `basismixer.basisfunction.loudness_direction_basis`.
+        Value of an `_incr` note feature for each score onset (i.e., `unique_onsets`)
+        The note feature evaluates to 0 at the start of the crescendo mark and 1 at the end and
+        zero otherwise. See `partitura.musicanalysis.note_features.loudness_direction_feature`.
     decrease : np.ndarray
-        Value from the `_decr basis function for each score onset (i.e., `unique_onsets`)
-        The basis function evaluates to 0 at the start of the diminuendo mark and 1 at the end and
-        zero otherwise. See `basismixer.basisfunction.loudness_direction_basis`.
+        Value from the `_decr` note feature for each score onset (i.e., `unique_onsets`)
+        The note feature evaluates to 0 at the start of the diminuendo mark and 1 at the end and
+        zero otherwise. See `partitura.musicanalysis.note_features.loudness_direction_feature`.
     unique_onsets : np.ndarray
         Unique score positions in beats in the score
     constant_markings_map : callable
@@ -238,7 +269,7 @@ def compute_increase_decrease_profile(increase, decrease, unique_onsets, constan
 
     # The full profile is the sum of both increase and decrease
     # TODO: Add a nonlinearity here?
-    incr_decr_profile = (increase_profile + decrease_profile).astype(np.float)
+    incr_decr_profile = (increase_profile + decrease_profile).astype(float)
 
     # scale according to dynamics markings:
     # how much it increases or decreases
