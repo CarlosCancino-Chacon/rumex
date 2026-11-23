@@ -9,6 +9,7 @@ This is a first prerelease of the package. In this release configuration functio
 * RuMEx no longer depends on the Basis Mixer. The note features (formerly basis functions) are computed with
   `partitura.musicanalysis.note_features` (`rumex.features`), the performance is decoded with the `partitura`
   performance codec (`rumex.render`), and the helpers for onsetwise aggregation come from `partitura`.
+* Rules: `compute_increase_decrease_profile` (dynamics and tempo) drops the value of a ramp at the onset where it ends if a new constant marking starts there (e.g. a crescendo up to an f). Without this, the end value 1 of the `partitura` ramps made the profile restart at that onset and hold a constant offset for the whole next marking.
 * License: GNU GPL version 3 or later (`GPL-3.0-or-later`), with copyright notices in the source files and the README.
 * Requires Python >= 3.10, `partitura` >= 1.9, `numpy` >= 2 and `scipy` >= 1.13.
 * Packaging with `pyproject.toml` (replaces `setup.py`); the `RuMExRender` command is a console entry point (`rumex.cli:main`), `bin/RuMExRender` is a thin wrapper for running from the source tree.

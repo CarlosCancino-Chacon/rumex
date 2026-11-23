@@ -48,3 +48,33 @@ def test_render_piece(tmp_path):
     assert [n["note_on"] for n in ppart.notes] == [n["note_on"] for n in ppart2.notes]
     # the performance can be saved
     partitura.save_performance_midi(ppart, str(tmp_path / "out.mid"))
+
+
+def _profile(increase, decrease=None):
+    from rumex.base import compute_increase_decrease_profile
+
+    onsets = np.arange(7, dtype=float)
+    markings = lambda o: 0 if o < 3 else 1  # noqa: E731  (a new marking starts at onset 3)
+    cm_array = np.array([[0.0, 0], [3.0, 1]])
+    if decrease is None:
+        decrease = np.zeros(len(onsets))
+    return compute_increase_decrease_profile(
+        np.array(increase, dtype=float), decrease, onsets, markings, cm_array,
+        parameter_per_marking=[40, 60], default_diff=10,
+    )
+
+
+def test_ramp_ending_at_new_marking():
+    # partitura ramps are 1 at the end of the direction: here the crescendo ends where the next marking starts
+    profile = _profile([0, 1 / 3, 2 / 3, 1, 0, 0, 0])
+    # the next section is not changed by the end point of the ramp
+    assert np.all(profile[3:] == 0)
+    # the crescendo reaches 90% of the difference between the two markings at the last onset before the end
+    assert np.isclose(profile[2], 0.9 * 20)
+
+
+def test_ramp_ending_inside_section():
+    # a crescendo that ends inside a section keeps its value until the next marking
+    profile = _profile([0, 0, 1 / 3, 2 / 3, 1, 0, 0])
+    assert profile[4] > profile[3] > 0
+    assert profile[5] == profile[6] == profile[4]

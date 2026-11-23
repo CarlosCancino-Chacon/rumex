@@ -164,6 +164,34 @@ def _initialize_onsetwise_parameter(unique_onsets, cm_array, parameter_per_marki
     return parameter
 
 
+def _drop_ramp_ends_at_marking_changes(
+    increase, decrease, unique_onsets, constant_markings_map
+):
+    """
+    Set to zero the value of the increase/decrease ramps at the onset where they end if a new
+    constant marking starts at that onset.
+
+    The ramps of `partitura` (`loudness_incr`, `loudness_decr`, `tempo_incr`, `tempo_decr`) are 1 at
+    the onset where the direction ends. When the direction ends where the next constant marking
+    starts (e.g., a crescendo up to an f), that onset belongs to the next section: its profile would
+    restart from the ramp value and be held constant for the whole section (and scaled with the
+    range of that section), changing the level of the next marking. The ramp reaches its maximum
+    (the level of the next marking) at the last onset before the end of the section, so the end
+    point is not needed.
+    """
+    increase = np.array(increase, dtype=float)
+    decrease = np.array(decrease, dtype=float)
+    markings = np.array([int(constant_markings_map(on)) for on in unique_onsets])
+    for i in range(1, len(unique_onsets)):
+        if markings[i] == markings[i - 1]:
+            continue
+        for ramp in (increase, decrease):
+            ends_here = i == len(ramp) - 1 or ramp[i + 1] == 0
+            if ramp[i] != 0 and ends_here:
+                ramp[i] = 0
+    return increase, decrease
+
+
 def compute_increase_decrease_profile(increase, decrease, unique_onsets, constant_markings_map,
                                       cm_array, parameter_per_marking, default_diff,
                                       max_multiplier=0.9):
@@ -200,6 +228,10 @@ def compute_increase_decrease_profile(increase, decrease, unique_onsets, constan
         An array with the change in MIDI velocity for each score onset resulting from
         crescendo and diminuendo markings.
     """
+    increase, decrease = _drop_ramp_ends_at_marking_changes(
+        increase, decrease, unique_onsets, constant_markings_map
+    )
+
     increase_profile = []
     decrease_profile = []
     prev_increase = False
