@@ -46,6 +46,11 @@ a dict for `render_piece`; see `rumex.DEFAULT_CONFIG`). For each of `dynamics`, 
   functions](https://github.com/CPJKU/partitura/blob/main/partitura/musicanalysis/note_features.py), e.g.
   `["loudness_direction_feature", "slur_feature"]` (the old key `basis_functions` is also read).
 
+Some rules have alternatives that can be chosen by replacing their name in the `pipeline`. For example, the default tempo
+rule `tempo_markings_rules` samples the tempo of each kind of tempo marking once and uses it for all its instances in the piece
+(allegro: 120 bpm, moderato: 112 bpm, allegro: 120 bpm), while `tempo_markings_variation_rules` lets the tempo of each instance
+vary by a small proportion (`variation`, 3% by default; allegro: 120 bpm, moderato: 90 bpm, allegro: 123 bpm).
+
 The expressive parameters (`beat_period`, `velocity`, `timing`, `articulation_log`) are turned into a performance with
 `partitura.musicanalysis.decode_performance`.
 

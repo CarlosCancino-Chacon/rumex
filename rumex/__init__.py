@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU General Public License along with RuMEx. If not, see
 # <https://www.gnu.org/licenses/>.
 
-from .dynamics import (DynamicsRules,
+from .dynamics import (DynamicsRules, melody_loudness_rules, skyline, monophonic_skyline,
                        DEFAULT_PIPELINE as DEFAULT_DYNAMICS_PIPELINE)
 from .tempo import (TempoRules,
                     DEFAULT_PIPELINE as DEFAULT_TEMPO_PIPELINE)
@@ -23,3 +23,5 @@ from .timing import (TimingRules,
                      DEFAULT_PIPELINE as DEFAULT_TIMING_PIPELINE)
 from .render import (render_piece, load_score, DEFAULT_CONFIG)
 from .features import compute_note_features, DEFAULT_NOTE_FEATURES
+from .grace import (expanded_note_array, ExpandedScore, has_grace_notes)
+from .doublenotes import double_notes_keep_mask

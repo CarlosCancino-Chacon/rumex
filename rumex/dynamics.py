@@ -239,6 +239,105 @@ def polynomial_pitch_height_rules(
     return velocity_trend, velocity_dev
 
 
+def skyline(pitch, unique_onset_idxs):
+    """
+    Skyline algorithm (Uitdenbogerd & Zobel, 1999): at each onset, the highest note is the melody.
+
+    Parameters
+    ----------
+    pitch : np.ndarray
+        MIDI pitch of each note.
+    unique_onset_idxs : list of np.ndarray
+        Indices of the notes that start at each onset (see `get_unique_onset_idxs`).
+
+    Returns
+    -------
+    is_melody : np.ndarray
+        Boolean array, True for the notes of the main melody line.
+    """
+    is_melody = np.zeros(len(pitch), dtype=bool)
+    for idx in unique_onset_idxs:
+        is_melody[idx[np.argmax(pitch[idx])]] = True
+    return is_melody
+
+
+def monophonic_skyline(pitch, onsets, duration, eps=1e-3):
+    """
+    Skyline algorithm that returns a strictly monophonic melody.
+
+    The basic skyline (`skyline`) takes the highest note of each onset, but the notes that it
+    selects can overlap (e.g., a held melody note and the highest note of the next onset). Here the
+    notes are processed in order of onset: take the highest note that starts at the first onset;
+    while it sounds, no other note can be selected; at the first onset after it ended, take the
+    highest note that starts there, and so on. The selected notes never overlap.
+
+    Parameters
+    ----------
+    pitch, onsets, duration : np.ndarray
+        MIDI pitch, onset and duration (in the same time unit, e.g., beats) of each note.
+    eps : float
+        Tolerance for the end of a note (a note that starts less than `eps` before the end of the
+        melody note is allowed to be selected; avoids problems with rounding).
+
+    Returns
+    -------
+    is_melody : np.ndarray
+        Boolean array, True for the notes of the main melody line.
+    """
+    pitch = np.asarray(pitch)
+    onsets = np.asarray(onsets, dtype=float)
+    ends = onsets + np.asarray(duration, dtype=float)
+
+    is_melody = np.zeros(len(pitch), dtype=bool)
+    unique_onset_idxs, unique_onsets = get_unique_onset_idxs(onsets, return_unique_onsets=True)
+    free_at = -np.inf  # time when the last melody note ends
+    for idx, onset in zip(unique_onset_idxs, unique_onsets):
+        if onset >= free_at - eps:
+            top = idx[np.argmax(pitch[idx])]
+            is_melody[top] = True
+            free_at = ends[top]
+
+    return is_melody
+
+
+def melody_loudness_rules(
+    pitch,
+    onsets,
+    duration,
+    unique_onset_idxs,
+    velocity_trend,
+    velocity_dev,
+    melody_relative_loudness=0.0,
+    monophonic=True,
+    *args,
+    **kwargs
+):
+    """
+    Play the main melody louder (or softer) than the accompaniment.
+
+    The melody is found with the skyline algorithm. Since `velocity = velocity_trend - velocity_dev`,
+    the rule subtracts `melody_relative_loudness * velocity_trend` from `velocity_dev` for the
+    melody notes.
+
+    Parameters
+    ----------
+    melody_relative_loudness : float
+        0 keeps the loudness, a positive value makes the melody louder by that proportion (0.5 is
+        50% louder, 1 is twice as loud) and a negative value makes it softer (-0.5 is half
+        way to silence). The final MIDI velocity is clipped to [1, 127] by the codec.
+    monophonic : bool
+        Use `monophonic_skyline` (takes the overlap of the notes into account) instead of the
+        basic `skyline`.
+    """
+    if monophonic:
+        is_melody = monophonic_skyline(pitch, onsets, duration)
+    else:
+        is_melody = skyline(pitch, unique_onset_idxs)
+    velocity_dev[is_melody] -= melody_relative_loudness * velocity_trend[is_melody]
+
+    return velocity_trend, velocity_dev
+
+
 def motor_noise_rules(velocity_trend, velocity_dev, rng=RNG, std=0.05, *args, **kwargs):
 
     velocity_dev += (

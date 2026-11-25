@@ -13,6 +13,7 @@
 # You should have received a copy of the GNU General Public License along with RuMEx. If not, see
 # <https://www.gnu.org/licenses/>.
 
+import functools
 from abc import ABC, abstractmethod
 
 import partitura
@@ -47,10 +48,15 @@ class PerformanceRules(ABC):
     Parameters
     ----------
     pipeline : list
-       A list with the names of the methods defining the rules for computing
-       expressive parameters.
+       A list defining the rules for computing expressive parameters. Each entry can be
+
+       * the name (str) of a rule function in the module of the subclass,
+       * a callable (a rule function you wrote yourself), or
+       * a tuple `(name or callable, kwargs)`, to set parameters of the rule, e.g.
+         `("melody_loudness_rules", {"melody_relative_loudness": 0.5})`.
     module_globals : dict
-       Globals of the module where the subclass is instantitated. (This is an ugly hack!)
+       Globals of the module where the subclass is instantitated, used to look up rules by name.
+       (This is an ugly hack!)
     rng : np.random.RandomState (optional)
        A random state for sampling random numbers
     """
@@ -58,12 +64,20 @@ class PerformanceRules(ABC):
         self.pipeline = []
 
         for proc in pipeline:
-            try:
-                func = module_globals[proc]
-                self.pipeline.append(func)
-            except:
-                raise ValueError('{0} is not an available method'.format(proc))
-            
+            kwargs = {}
+            if isinstance(proc, (tuple, list)):
+                proc, kwargs = proc
+            if callable(proc):
+                func = proc
+            else:
+                try:
+                    func = module_globals[proc]
+                except KeyError:
+                    raise ValueError('{0} is not an available method'.format(proc))
+            if kwargs:
+                func = functools.partial(func, **kwargs)
+            self.pipeline.append(func)
+
         self.rng = rng
 
     @abstractmethod

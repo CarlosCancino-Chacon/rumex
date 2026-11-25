@@ -146,7 +146,42 @@ class TempoRules(PerformanceRules):
         return beat_period
 
 
-def tempo_markings_rules(
+def tempo_markings_rules(W, names, onsets, rng=RNG, *args, **kwargs):
+    """
+    Rules for constant and gradual tempo markings.
+
+    The tempo of a marking (e.g., allegro) is sampled once from the range of the marking
+    (`TEMPO_MARKINGS_BPM`), and used for all the instances of the same marking in the piece
+    (allegro: 120 bpm -> moderato: 112 bpm -> allegro: 120 bpm).
+    Accelerandos and ritardandos are added on top. Alternative: `tempo_markings_variation_rules`.
+
+    Parameters are those of `_tempo_markings_rules`. This method overwrites `beat_period` if given.
+    """
+    return _tempo_markings_rules(
+        W=W, names=names, onsets=onsets, rng=rng, variation=0.0, *args, **kwargs
+    )
+
+
+def tempo_markings_variation_rules(
+    W, names, onsets, rng=RNG, variation=0.03, *args, **kwargs
+):
+    """
+    Like `tempo_markings_rules`, but the tempo of each instance of the same marking varies by a small
+    random proportion around the tempo of the marking (allegro: 120 bpm -> moderato: 90 bpm ->
+    allegro: 123 bpm).
+
+    Parameters
+    ----------
+    variation : float
+        Maximal relative change of the tempo (in bpm) of an instance of a marking
+        (0.03 means between 97% and 103% of the tempo of the marking).
+    """
+    return _tempo_markings_rules(
+        W=W, names=names, onsets=onsets, rng=rng, variation=variation, *args, **kwargs
+    )
+
+
+def _tempo_markings_rules(
     W,
     names,
     onsets,
@@ -154,11 +189,12 @@ def tempo_markings_rules(
     unique_onset_idxs=None,
     unique_onsets=None,
     beat_period=None,
+    variation=0.0,
     *args,
     **kwargs
 ):
     """
-    Rules for constant and gradual tempo markings.
+    Implementation of the rules for constant and gradual tempo markings.
 
     Parameters
     ----------
@@ -169,6 +205,9 @@ def tempo_markings_rules(
     unique_onset_idxs: list or None
     unique_onsets: np.array or None
     beat_period : np.array
+    variation : float
+        Maximal relative change of the tempo of each instance of a marking (0: all instances of a
+        marking have the same tempo).
 
     Returns
     -------
@@ -203,7 +242,9 @@ def tempo_markings_rules(
         constant_markings=CONSTANT_MARKINGS,
         default_marking="moderato",
     )
-    beat_period_per_tm = _sample_beat_period_per_dm(tm_array=tm_array, rng=rng)
+    beat_period_per_tm = _sample_beat_period_per_tm(
+        tm_array=tm_array, rng=rng, variation=variation
+    )
 
     # Initialize beat period (i.e., overwrites any given input beat_period)
     beat_period = _initialize_onsetwise_parameter(
@@ -238,11 +279,23 @@ def tempo_markings_rules(
     return onsetwise_to_notewise(beat_period, unique_onset_idxs)
 
 
-def _sample_beat_period_per_dm(tm_array, rng):
-    beat_period_per_tm = [
-        60.0 / rng.uniform(*TEMPO_MARKINGS_BPM[CONSTANT_MARKINGS[int(tm)]])
-        for _, tm in tm_array
-    ]
+def _sample_beat_period_per_tm(tm_array, rng, variation=0.0):
+    """
+    Beat period for each instance of a tempo marking in `tm_array`.
+
+    The tempo of each kind of marking is sampled once (the first time that it appears). If `variation`
+    is larger than 0, each instance gets a tempo that differs from it by at most this proportion.
+    """
+    bpm_per_marking = {}
+    beat_period_per_tm = []
+    for _, tm in tm_array:
+        marking = CONSTANT_MARKINGS[int(tm)]
+        if marking not in bpm_per_marking:
+            bpm_per_marking[marking] = rng.uniform(*TEMPO_MARKINGS_BPM[marking])
+        bpm = bpm_per_marking[marking]
+        if variation > 0:
+            bpm *= rng.uniform(1 - variation, 1 + variation)
+        beat_period_per_tm.append(60.0 / bpm)
     return beat_period_per_tm
 
 

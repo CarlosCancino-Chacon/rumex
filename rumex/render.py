@@ -26,6 +26,8 @@ import partitura.score as score
 from partitura.musicanalysis import decode_performance
 
 from rumex.features import compute_note_features
+from rumex.grace import NoteArrayScore, expanded_note_array, has_grace_notes
+from rumex.doublenotes import double_notes_keep_mask
 from rumex.dynamics import DynamicsRules, DEFAULT_PIPELINE as DEFAULT_DYNAMICS_PIPELINE
 from rumex.tempo import TempoRules, DEFAULT_PIPELINE as DEFAULT_TEMPO_PIPELINE
 from rumex.articulation import (
@@ -56,12 +58,19 @@ PARAMETER_NAMES = [
 ]
 
 
-def load_score(filename, **kwargs):
+def load_score(filename, grace_notes="keep", **kwargs):
     """
-    Load a score (MusicXML, MIDI, MEI, ...) as a single part without grace notes.
+    Load a score (MusicXML, MIDI, MEI, ...) as a single part.
 
     The part is the merge of all the parts of the score. Notes without an id get one (the rules need
     unique note ids).
+
+    Parameters
+    ----------
+    filename : str
+    grace_notes : "keep" or "remove"
+        "keep" keeps the grace notes (`render_piece` expands them according to their type, see
+        `rumex.grace`), "remove" removes them.
     """
     if str(filename).lower().endswith((".mid", ".midi")):
         scr = partitura.load_score_midi(filename, **kwargs)
@@ -69,8 +78,10 @@ def load_score(filename, **kwargs):
         scr = partitura.load_score(filename, force_note_ids="keep", **kwargs)
     parts = scr.parts
     part = parts[0] if len(parts) == 1 else score.merge_parts(parts)
-    # TODO: expand grace notes (`score.expand_grace_notes`) instead of removing them
-    score.remove_grace_notes(part)
+    if grace_notes == "remove":
+        score.remove_grace_notes(part)
+    elif grace_notes != "keep":
+        raise ValueError("`grace_notes` must be 'keep' or 'remove'")
     return part
 
 
@@ -84,7 +95,16 @@ def _feature_subset(config):
     return list(dict.fromkeys(names))
 
 
-def render_piece(part, config=DEFAULT_CONFIG, rng=RNG, return_features=False):
+def render_piece(
+    part,
+    config=DEFAULT_CONFIG,
+    rng=RNG,
+    return_features=False,
+    expand_grace_notes=True,
+    grace_offset_quarter=0.25,
+    remove_double_notes=True,
+    keep_longer_double_note=True,
+):
     """
     Render a performance of a score part.
 
@@ -98,13 +118,37 @@ def render_piece(part, config=DEFAULT_CONFIG, rng=RNG, return_features=False):
     rng : np.random.RandomState
     return_features : bool
         Also return the note features, the expressive parameters and the alignment.
+    expand_grace_notes : bool
+        Give the grace notes a position and a duration in the score according to their type
+        (appoggiatura, acciaccatura), see `rumex.grace`. Otherwise they have no duration.
+    grace_offset_quarter : float
+        Total duration (in quarter notes) of the grace notes of the same type at an onset.
+    remove_double_notes : bool
+        Remove the double notes (same pitch and onset in different voices): they cannot be played twice,
+        which is a problem, e.g., on a mechanical piano. Only one note of each group is performed.
+    keep_longer_double_note : bool
+        Keep the longest note of the group of double notes (the shortest otherwise).
 
     Returns
     -------
     ppart : partitura.performance.PerformedPart
+        The notes are ordered by score onset and pitch (the grace notes at their expanded position).
     W, names, predictions, alignment : only if `return_features`
+        `W` and `predictions` have one row per note of `part.note_array()` (without the removed double
+        notes), `alignment` pairs the ids of the score notes with the ones of the performed notes.
     """
     W, names = compute_note_features(part, _feature_subset(config))
+
+    # The rules and the codec use the note array of `score_`: with the grace notes expanded and without
+    # the double notes (same row order as `part`; `W` has the same rows)
+    note_array = part.note_array()
+    if expand_grace_notes and has_grace_notes(part):
+        note_array = expanded_note_array(part, grace_offset_quarter)
+    keep = np.ones(len(note_array), dtype=bool)
+    if remove_double_notes:
+        keep = double_notes_keep_mask(part, keep_longer_double_note)
+    W = W[keep]
+    score_ = NoteArrayScore(note_array[keep], part)
 
     # Initialize rule pipelines
     dr = DynamicsRules(pipeline=config["dynamics"]["pipeline"], rng=rng)
@@ -113,11 +157,11 @@ def render_piece(part, config=DEFAULT_CONFIG, rng=RNG, return_features=False):
     tir = TimingRules(pipeline=config["timing"]["pipeline"], rng=rng)
 
     # Compute expressive parameters
-    velocity_trend, velocity_dev = dr.compute_parameters(part=part, W=W, names=names)
-    beat_period = ter.compute_parameters(part=part, W=W, names=names)
-    articulation_log = ar.compute_parameters(part=part, W=W, names=names)
+    velocity_trend, velocity_dev = dr.compute_parameters(part=score_, W=W, names=names)
+    beat_period = ter.compute_parameters(part=score_, W=W, names=names)
+    articulation_log = ar.compute_parameters(part=score_, W=W, names=names)
     timing = tir.compute_parameters(
-        part=part,
+        part=score_,
         W=W,
         names=names,
         velocity_trend=velocity_trend,
@@ -133,7 +177,13 @@ def render_piece(part, config=DEFAULT_CONFIG, rng=RNG, return_features=False):
     predictions["timing"] = timing
     predictions["articulation_log"] = articulation_log
 
-    ppart, alignment = decode_performance(part, predictions, return_alignment=True)
+    # `decode_performance` sorts the notes by onset and pitch: give it the notes (and the parameters) in
+    # that order, so that the ids of the performed notes are the right ones
+    note_array = score_.note_array()
+    sort_idx = np.lexsort((note_array["pitch"], note_array["onset_div"]))
+    ppart, alignment = decode_performance(
+        NoteArrayScore(note_array[sort_idx]), predictions[sort_idx], return_alignment=True
+    )
 
     if return_features:
         return ppart, W, names, predictions, alignment
