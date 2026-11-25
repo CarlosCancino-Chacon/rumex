@@ -62,3 +62,9 @@ RuMEx is free software: you can redistribute it and/or modify it under the terms
 published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. It is
 distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY. See the [LICENSE](LICENSE) file (GNU GPL version
 3) for details.
+
+## Acknowledgments
+
+Work on this repository is funded by the Austrian Science Fund (FWF) under grants
+[10.55776/PIN1347924](https://www.fwf.ac.at/en/research-radar/10.55776/PIN1347924) (AURA: Augmenting musical interaction via EVAs) and
+[10.55776/PAT8820923](https://www.fwf.ac.at/forschungsradar/10.55776/PAT8820923) (Rach3: A Computational Approach to Study Piano Rehearsals).
